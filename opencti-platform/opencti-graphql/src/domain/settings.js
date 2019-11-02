@@ -1,22 +1,21 @@
 import uuid from 'uuid/v4';
 import {
+  deleteEntityById,
   escape,
   escapeString,
-  deleteEntityById,
-  updateAttribute,
+  executeWrite,
   getById,
+  getGraknVersion,
   getObject,
+  graknNow,
   notify,
-  now,
-  takeWriteTx,
-  commitWriteTx,
-  getGraknVersion
+  updateAttribute
 } from '../database/grakn';
 import { BUS_TOPICS } from '../config/conf';
 import {
   delEditContext,
-  setEditContext,
-  getRedisVersion
+  getRedisVersion,
+  setEditContext
 } from '../database/redis';
 
 import { getElasticVersion } from '../database/elasticSearch';
@@ -44,12 +43,12 @@ export const getSettings = () =>
   ).then(result => result.node);
 
 export const addSettings = async (user, settings) => {
-  const wTx = await takeWriteTx();
-  const internalId = settings.internal_id
-    ? escapeString(settings.internal_id)
-    : uuid();
-  await wTx.tx.query(`insert $settings isa Settings,
-    has internal_id "${internalId}",
+  const settingId = await executeWrite(async wTx => {
+    const internalId = settings.internal_id_key
+      ? escapeString(settings.internal_id_key)
+      : uuid();
+    await wTx.tx.query(`insert $settings isa Settings,
+    has internal_id_key "${internalId}",
     has entity_type "settings",
     has platform_title "${escapeString(settings.platform_title)}",
     has platform_email "${escapeString(settings.platform_email)}",
@@ -57,13 +56,12 @@ export const addSettings = async (user, settings) => {
     has platform_language "${escapeString(settings.platform_language)}",
     has platform_external_auth ${escape(settings.platform_external_auth)},
     has platform_registration ${escape(settings.platform_registration)},
-    has created_at ${now()},
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has updated_at ${graknNow()};
   `);
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created =>
+    return internalId;
+  });
+  return getById(settingId).then(created =>
     notify(BUS_TOPICS.Settings.ADDED_TOPIC, created, user)
   );
 };

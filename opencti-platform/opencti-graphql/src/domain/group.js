@@ -1,22 +1,21 @@
 import uuid from 'uuid/v4';
-import { map } from 'ramda';
 import {
-  escapeString,
-  deleteEntityById,
-  getById,
   dayFormat,
+  deleteEntityById,
+  escapeString,
+  executeWrite,
+  getById,
+  graknNow,
   monthFormat,
-  yearFormat,
   notify,
-  now,
   paginate,
-  takeWriteTx,
-  commitWriteTx
+  yearFormat
 } from '../database/grakn';
 import { BUS_TOPICS } from '../config/conf';
+import { linkCreatedByRef, linkMarkingDef } from './stixEntity';
 
-export const findAll = args =>
-  paginate(
+export const findAll = args => {
+  return paginate(
     `match $g isa Group ${
       args.search
         ? `; $g has name $name;
@@ -27,70 +26,53 @@ export const findAll = args =>
     }`,
     args
   );
+};
 
 export const findById = groupId => getById(groupId);
 
-export const members = (groupId, args) =>
-  paginate(
+export const members = (groupId, args) => {
+  return paginate(
     `match $user isa User; 
     $rel((member:$user, grouping:$g) isa membership; 
-    $g has internal_id "${escapeString(groupId)}"`,
+    $g has internal_id_key "${escapeString(groupId)}"`,
     args
   );
+};
 
-export const permissions = (groupId, args) =>
-  paginate(
+export const permissions = (groupId, args) => {
+  return paginate(
     `match $marking isa Marking-Definition; 
     $rel(allow:$marking, allowed:$g) isa permission; 
-    $g has internal_id "${escapeString(groupId)}"`,
+    $g has internal_id_key "${escapeString(groupId)}"`,
     args
   );
+};
 
 export const addGroup = async (user, group) => {
-  const wTx = await takeWriteTx();
-  const internalId = group.internal_id
-    ? escapeString(group.internal_id)
-    : uuid();
-  const groupIterator = await wTx.tx.query(`insert $group isa Group,
-    has internal_id "${internalId}",
+  const groupId = await executeWrite(async wTx => {
+    const internalId = group.internal_id_key
+      ? escapeString(group.internal_id_key)
+      : uuid();
+    const groupIterator = await wTx.tx.query(`insert $group isa Group,
+    has internal_id_key "${internalId}",
     has entity_type "group",
     has name "${escapeString(group.name)}",
     has description "${escapeString(group.description)}",
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}",  
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has created_at_day "${dayFormat(graknNow())}",
+    has created_at_month "${monthFormat(graknNow())}",
+    has created_at_year "${yearFormat(graknNow())}",  
+    has updated_at ${graknNow()};
   `);
-  const createGroup = await groupIterator.next();
-  const createdGroupId = await createGroup.map().get('group').id;
+    const createGroup = await groupIterator.next();
+    const createdGroupId = await createGroup.map().get('group').id;
 
-  if (group.createdByRef) {
-    await wTx.tx.query(
-      `match $from id ${createdGroupId};
-      $to has internal_id "${escapeString(group.createdByRef)}";
-      insert (so: $from, creator: $to)
-      isa created_by_ref, has internal_id "${uuid()}";`
-    );
-  }
-
-  if (group.markingDefinitions) {
-    const createMarkingDefinition = markingDefinition =>
-      wTx.tx.query(
-        `match $from id ${createdGroupId}; 
-        $to has internal_id "${escapeString(markingDefinition)}";
-        insert (so: $from, marking: $to) isa object_marking_refs, has internal_id "${uuid()}";`
-      );
-    const markingDefinitionsPromises = map(
-      createMarkingDefinition,
-      group.markingDefinitions
-    );
-    await Promise.all(markingDefinitionsPromises);
-  }
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created =>
+    // Create associated relations
+    await linkCreatedByRef(wTx, createdGroupId, group.createdByRef);
+    await linkMarkingDef(wTx, createdGroupId, group.markingDefinitions);
+    return internalId;
+  });
+  return getById(groupId).then(created =>
     notify(BUS_TOPICS.StixDomainEntity.ADDED_TOPIC, created, user)
   );
 };

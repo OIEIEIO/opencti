@@ -14,7 +14,10 @@ input:-webkit-autofill:active {
   -webkit-animation: autofill 0s forwards;
   animation: autofill 0s forwards;
   -webkit-text-fill-color: #fff !important;
-  caret-color: #fff !important;
+  caret-color: transparent !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(4, 8, 17, 0.88) inset !important;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 
 @keyframes autofill {
@@ -181,6 +184,10 @@ div.srd-port {
 
 div.srd-port:hover {
   background-color: transparent !important;
+}
+
+.srd-default-link-marker {
+  fill: rgb(165,165,165) !important;
 }
 
 .srd-default-link--path-inferred {

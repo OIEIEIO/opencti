@@ -1,14 +1,10 @@
 import {
-  escapeString,
-  queryAttributeValues,
-  queryAttributeValueById,
   deleteAttributeById,
-  takeWriteTx,
-  commitWriteTx,
-  closeWriteTx,
-  getAttributes,
-  takeReadTx,
-  closeReadTx
+  escapeString,
+  executeWrite,
+  queryAttributeValueById,
+  queryAttributeValues,
+  reindexEntityForAttribute
 } from '../database/grakn';
 import { logger } from '../config/conf';
 
@@ -17,8 +13,7 @@ export const findById = attributeId => queryAttributeValueById(attributeId);
 export const findAll = args => queryAttributeValues(args.type);
 
 export const addAttribute = async attribute => {
-  const wTx = await takeWriteTx();
-  try {
+  return executeWrite(async wTx => {
     const query = `insert $attribute isa ${
       attribute.type
     }; $attribute "${escapeString(attribute.value)}";`;
@@ -26,17 +21,12 @@ export const addAttribute = async attribute => {
     const attributeIterator = await wTx.tx.query(query);
     const createdAttribute = await attributeIterator.next();
     const createdAttributeId = await createdAttribute.map().get('attribute').id;
-    await commitWriteTx(wTx);
     return {
       id: createdAttributeId,
       type: attribute.type,
       value: attribute.value
     };
-  } catch (err) {
-    logger.error('[GRAKN] addAttribute error > ', err);
-    await closeWriteTx(wTx);
-    return {};
-  }
+  });
 };
 
 export const attributeDelete = async id => {
@@ -49,9 +39,8 @@ export const attributeUpdate = async (id, input) => {
     type: input.type,
     value: input.newValue
   });
-  // region Link new attribute to every entities
-  const wTx = await takeWriteTx();
-  try {
+  // Link new attribute to every entities
+  await executeWrite(async wTx => {
     const writeQuery = `match $e isa entity, has ${escape(
       input.type
     )} $a; $a "${escapeString(input.value)}"; insert $e has ${escape(
@@ -59,38 +48,11 @@ export const attributeUpdate = async (id, input) => {
     )} $attribute; $attribute "${escapeString(input.newValue)}";`;
     logger.debug(`[GRAKN - infer: false] attributeUpdate > ${writeQuery}`);
     await wTx.tx.query(writeQuery);
-    await commitWriteTx(wTx);
-  } catch (err) {
-    logger.error('[GRAKN] attributeUpdate error > ', err);
-    await closeWriteTx(wTx);
-  }
-  // endregion
-
+  });
   // Delete old attribute
   await deleteAttributeById(id);
-
-  // region Reindex all entities using this attribute
-  const rTx = await takeReadTx();
-  try {
-    const readQuery = `match $x isa entity, has ${escape(
-      input.type
-    )} $a; $a "${escapeString(input.newValue)}"; get $x;`;
-    logger.debug(`[GRAKN - infer: false] attributeUpdate > ${readQuery}`);
-    const iterator = await rTx.tx.query(readQuery);
-    const answers = await iterator.collect();
-    await Promise.all(
-      answers.map(answer => {
-        const entity = answer.map().get('x');
-        return getAttributes(entity, true);
-      })
-    );
-    await closeReadTx(rTx);
-  } catch (err) {
-    logger.error('[GRAKN] attributeUpdate error > ', err);
-    await closeReadTx(rTx);
-  }
-  // endregion
-
+  // Reindex all entities using this attribute
+  await reindexEntityForAttribute(input.type, input.newValue);
   // Return the new attribute
   return newAttribute;
 };

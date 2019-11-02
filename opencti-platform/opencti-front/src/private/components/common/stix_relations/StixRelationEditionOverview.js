@@ -17,6 +17,9 @@ import {
   difference,
   head,
   union,
+  sortWith,
+  ascend,
+  path,
 } from 'ramda';
 import { withStyles } from '@material-ui/core/styles';
 import Typography from '@material-ui/core/Typography';
@@ -44,6 +47,7 @@ import Autocomplete from '../../../../components/Autocomplete';
 import DatePickerField from '../../../../components/DatePickerField';
 import { attributesQuery } from '../../settings/attributes/AttributesLines';
 import { markingDefinitionsSearchQuery } from '../../settings/MarkingDefinitions';
+import { killChainPhasesSearchQuery } from '../../settings/KillChainPhases';
 
 const styles = (theme) => ({
   header: {
@@ -172,7 +176,7 @@ const stixRelationValidation = (t) => Yup.object().shape({
 class StixRelationEditionContainer extends Component {
   constructor(props) {
     super(props);
-    this.state = { markingDefinitions: [] };
+    this.state = { killChainPhases: [], markingDefinitions: [] };
   }
 
   componentDidMount() {
@@ -190,6 +194,24 @@ class StixRelationEditionContainer extends Component {
     this.state.sub.dispose();
   }
 
+  searchKillChainPhases(event) {
+    fetchQuery(killChainPhasesSearchQuery, {
+      search: event.target.value,
+    }).then((data) => {
+      const killChainPhases = pipe(
+        pathOr([], ['killChainPhases', 'edges']),
+        sortWith([ascend(path(['node', 'phase_order']))]),
+        map((n) => ({
+          label: `[${n.node.kill_chain_name}] ${n.node.phase_name}`,
+          value: n.node.id,
+        })),
+      )(data);
+      this.setState({
+        killChainPhases: union(this.state.killChainPhases, killChainPhases),
+      });
+    });
+  }
+
   searchMarkingDefinitions(event) {
     fetchQuery(markingDefinitionsSearchQuery, {
       search: event.target.value,
@@ -205,6 +227,46 @@ class StixRelationEditionContainer extends Component {
         ),
       });
     });
+  }
+
+  handleChangeKillChainPhases(name, values) {
+    const { stixRelation } = this.props;
+    const currentKillChainPhases = pipe(
+      pathOr([], ['killChainPhases', 'edges']),
+      map((n) => ({
+        label: `[${n.node.kill_chain_name}] ${n.node.phase_name}`,
+        value: n.node.id,
+        relationId: n.relation.id,
+      })),
+    )(stixRelation);
+
+    const added = difference(values, currentKillChainPhases);
+    const removed = difference(currentKillChainPhases, values);
+
+    if (added.length > 0) {
+      commitMutation({
+        mutation: stixRelationMutationRelationAdd,
+        variables: {
+          id: head(added).value,
+          input: {
+            fromRole: 'kill_chain_phase',
+            toId: stixRelation.id,
+            toRole: 'phase_belonging',
+            through: 'kill_chain_phases',
+          },
+        },
+      });
+    }
+
+    if (removed.length > 0) {
+      commitMutation({
+        mutation: stixRelationMutationRelationDelete,
+        variables: {
+          id: stixRelation.id,
+          relationId: head(removed).relationId,
+        },
+      });
+    }
   }
 
   handleChangeMarkingDefinition(name, values) {
@@ -282,7 +344,6 @@ class StixRelationEditionContainer extends Component {
       handleDelete,
       stixRelation,
       me,
-      variant,
       stixDomainEntity,
     } = this.props;
     const { editContext } = stixRelation;
@@ -290,6 +351,14 @@ class StixRelationEditionContainer extends Component {
     const editUsers = missingMe
       ? insert(0, { name: me.email }, editContext)
       : editContext;
+    const killChainPhases = pipe(
+      pathOr([], ['killChainPhases', 'edges']),
+      map((n) => ({
+        label: `[${n.node.kill_chain_name}] ${n.node.phase_name}`,
+        value: n.node.id,
+        relationId: n.relation.id,
+      })),
+    )(stixRelation);
     const markingDefinitions = pipe(
       pathOr([], ['markingDefinitions', 'edges']),
       map((n) => ({
@@ -301,6 +370,7 @@ class StixRelationEditionContainer extends Component {
     const initialValues = pipe(
       assoc('first_seen', dateFormat(stixRelation.first_seen)),
       assoc('last_seen', dateFormat(stixRelation.last_seen)),
+      assoc('killChainPhases', killChainPhases),
       assoc('markingDefinitions', markingDefinitions),
       pick([
         'weight',
@@ -310,6 +380,7 @@ class StixRelationEditionContainer extends Component {
         'role_played',
         'score',
         'expiration',
+        'killChainPhases',
         'markingDefinitions',
       ]),
     )(stixRelation);
@@ -495,6 +566,23 @@ class StixRelationEditionContainer extends Component {
                           }
                         />
                         <Field
+                          name="killChainPhases"
+                          component={Autocomplete}
+                          multiple={true}
+                          label={t('Kill chain phases')}
+                          options={this.state.killChainPhases}
+                          onInputChange={this.searchKillChainPhases.bind(this)}
+                          onChange={this.handleChangeKillChainPhases.bind(this)}
+                          onFocus={this.handleChangeFocus.bind(this)}
+                          helperText={
+                            <SubscriptionFocus
+                              me={me}
+                              users={editUsers}
+                              fieldName="killChainPhases"
+                            />
+                          }
+                        />
+                        <Field
                           name="markingDefinitions"
                           component={Autocomplete}
                           multiple={true}
@@ -536,7 +624,7 @@ class StixRelationEditionContainer extends Component {
           ) : (
             ''
           )}
-          {variant !== 'noGraph' ? (
+          {typeof handleDelete === 'function' ? (
             <Button
               variant="contained"
               onClick={handleDelete.bind(this)}
@@ -554,7 +642,6 @@ class StixRelationEditionContainer extends Component {
 }
 
 StixRelationEditionContainer.propTypes = {
-  variant: PropTypes.string,
   handleClose: PropTypes.func,
   handleDelete: PropTypes.func,
   classes: PropTypes.object,
@@ -579,6 +666,19 @@ const StixRelationEditionFragment = createFragmentContainer(
         role_played
         score
         expiration
+        killChainPhases {
+          edges {
+            node {
+              id
+              kill_chain_name
+              phase_name
+              phase_order
+            }
+            relation {
+              id
+            }
+          }
+        }
         markingDefinitions {
           edges {
             node {

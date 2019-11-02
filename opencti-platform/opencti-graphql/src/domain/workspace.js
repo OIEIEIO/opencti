@@ -2,23 +2,22 @@ import uuid from 'uuid/v4';
 import { map } from 'ramda';
 import { delEditContext, setEditContext } from '../database/redis';
 import {
-  escapeString,
   createRelation,
+  dayFormat,
   deleteEntityById,
   deleteRelationById,
-  getSingleValueNumber,
-  updateAttribute,
+  escapeString,
+  executeWrite,
   getById,
-  dayFormat,
-  monthFormat,
-  yearFormat,
-  notify,
-  now,
-  paginate,
   getObject,
-  takeWriteTx,
-  commitWriteTx,
-  prepareDate
+  getSingleValueNumber,
+  graknNow,
+  monthFormat,
+  notify,
+  paginate,
+  prepareDate,
+  updateAttribute,
+  yearFormat
 } from '../database/grakn';
 import { BUS_TOPICS } from '../config/conf';
 
@@ -50,9 +49,9 @@ export const workspacesNumber = args => {
         args.endDate
           ? `$x has created_at $date; $date < ${prepareDate(args.endDate)};`
           : ''
-      } get $x; count;`
+      } get; count;`
     ),
-    total: getSingleValueNumber(`match $x isa Workspace; get $x; count;`)
+    total: getSingleValueNumber(`match $x isa Workspace; get; count;`)
   };
 };
 
@@ -60,88 +59,64 @@ export const ownedBy = workspaceId =>
   getObject(
     `match $x isa User; 
     $rel(owner:$x, to:$workspace) isa owned_by; 
-    $workspace has internal_id "${escapeString(
+    $workspace has internal_id_key "${escapeString(
       workspaceId
-    )}"; get $x, $rel; offset 0; limit 1;`,
+    )}"; get; offset 0; limit 1;`,
     'x',
     'rel'
-  );
-
-export const markingDefinitions = (workspaceId, args) =>
-  paginate(
-    `match $marking isa Marking-Definition; 
-    $rel(marking:$marking, so:$workspace) isa object_marking_refs; 
-    $workspace has internal_id "${escapeString(workspaceId)}"`,
-    args,
-    false,
-    null,
-    false,
-    false
-  );
-
-export const tags = (workspaceId, args) =>
-  paginate(
-    `match $tag isa Tag; 
-    $rel(tagging:$tag, so:$workspace) isa tagged; 
-    $workspace has internal_id "${escapeString(workspaceId)}"`,
-    args,
-    false,
-    null,
-    false,
-    false
   );
 
 export const objectRefs = (workspaceId, args) =>
   paginate(
     `match $so isa Stix-Domain-Entity; 
     $rel(so:$so, knowledge_aggregation:$workspace) isa object_refs; 
-    $workspace has internal_id "${escapeString(workspaceId)}"`,
+    $workspace has internal_id_key "${escapeString(workspaceId)}"`,
     args,
     false
   );
 
 export const addWorkspace = async (user, workspace) => {
-  const wTx = await takeWriteTx();
-  const internalId = workspace.internal_id
-    ? escapeString(workspace.internal_id)
-    : uuid();
-  const workspaceIterator = await wTx.tx.query(`insert $workspace isa Workspace,
-    has internal_id "${internalId}",
+  const workId = await executeWrite(async wTx => {
+    const internalId = workspace.internal_id_key
+      ? escapeString(workspace.internal_id_key)
+      : uuid();
+    const workspaceIterator = await wTx.tx
+      .query(`insert $workspace isa Workspace,
+    has internal_id_key "${internalId}",
     has entity_type "workspace",
     has workspace_type "${escapeString(workspace.workspace_type)}",
     has name "${escapeString(workspace.name)}",
     has description "${escapeString(workspace.description)}",
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}",          
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has created_at_day "${dayFormat(graknNow())}",
+    has created_at_month "${monthFormat(graknNow())}",
+    has created_at_year "${yearFormat(graknNow())}",          
+    has updated_at ${graknNow()};
   `);
-  const createdWorkspace = await workspaceIterator.next();
-  const createdWorkspaceId = await createdWorkspace.map().get('workspace').id;
+    const createdWorkspace = await workspaceIterator.next();
+    const createdWorkspaceId = await createdWorkspace.map().get('workspace').id;
 
-  await wTx.tx.query(`match $from id ${createdWorkspaceId};
-         $to has internal_id "${user.id}";
+    await wTx.tx.query(`match $from id ${createdWorkspaceId};
+         $to has internal_id_key "${user.id}";
          insert (to: $from, owner: $to)
-         isa owned_by, has internal_id "${uuid()}";`);
+         isa owned_by, has internal_id_key "${uuid()}";`);
 
-  if (workspace.markingDefinitions) {
-    const createMarkingDefinition = markingDefinition =>
-      wTx.tx.query(
-        `match $from id ${createdWorkspaceId}; 
-        $to has internal_id "${escapeString(markingDefinition)}"; 
-        insert (so: $from, marking: $to) isa object_marking_refs, has internal_id "${uuid()}";`
+    if (workspace.markingDefinitions) {
+      const createMarkingDefinition = markingDefinition =>
+        wTx.tx.query(
+          `match $from id ${createdWorkspaceId}; 
+        $to has internal_id_key "${escapeString(markingDefinition)}"; 
+        insert (so: $from, marking: $to) isa object_marking_refs, has internal_id_key "${uuid()}";`
+        );
+      const markingDefinitionsPromises = map(
+        createMarkingDefinition,
+        workspace.markingDefinitions
       );
-    const markingDefinitionsPromises = map(
-      createMarkingDefinition,
-      workspace.markingDefinitions
-    );
-    await Promise.all(markingDefinitionsPromises);
-  }
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created =>
+      await Promise.all(markingDefinitionsPromises);
+    }
+    return internalId;
+  });
+  return getById(workId).then(created =>
     notify(BUS_TOPICS.Workspace.ADDED_TOPIC, created, user)
   );
 };
@@ -165,19 +140,17 @@ export const workspaceAddRelations = async (user, workspaceId, input) => {
     input.toIds
   );
 
-  const wTx = await takeWriteTx();
-  const createRelationPromise = relationInput =>
-    wTx.tx.query(`match $from has internal_id ${workspaceId}; 
-         $to has internal_id ${relationInput.toId}; 
+  await executeWrite(async wTx => {
+    const createRelationPromise = relationInput =>
+      wTx.tx.query(`match $from has internal_id_key ${workspaceId}; 
+         $to has internal_id_key ${relationInput.toId}; 
          insert $rel(${relationInput.fromRole}: $from, ${
-      relationInput.toRole
-    }: $to) 
-         isa ${relationInput.through}, has internal_id "${uuid()}";`);
-
-  const relationsPromises = map(createRelationPromise, finalInput);
-  await Promise.all(relationsPromises);
-
-  await commitWriteTx(wTx);
+        relationInput.toRole
+      }: $to) 
+         isa ${relationInput.through}, has internal_id_key "${uuid()}";`);
+    const relationsPromises = map(createRelationPromise, finalInput);
+    await Promise.all(relationsPromises);
+  });
 
   return getById(workspaceId).then(workspace =>
     notify(BUS_TOPICS.Workspace.EDIT_TOPIC, workspace, user)

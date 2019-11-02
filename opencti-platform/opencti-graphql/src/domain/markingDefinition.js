@@ -1,26 +1,26 @@
 import uuid from 'uuid/v4';
 import { delEditContext, setEditContext } from '../database/redis';
 import {
-  escapeString,
   createRelation,
+  dayFormat,
   deleteEntityById,
   deleteRelationById,
-  updateAttribute,
+  escapeString,
+  executeWrite,
   getById,
-  prepareDate,
-  dayFormat,
+  graknNow,
   monthFormat,
-  yearFormat,
   notify,
-  now,
   paginate,
-  takeWriteTx,
-  commitWriteTx
+  prepareDate,
+  updateAttribute,
+  yearFormat
 } from '../database/grakn';
 import { BUS_TOPICS } from '../config/conf';
+import { linkCreatedByRef } from './stixEntity';
 
-export const findAll = args =>
-  paginate(
+export const findAll = args => {
+  return paginate(
     `match $m isa Marking-Definition ${
       args.search
         ? `; $m has definition_type $type;
@@ -31,50 +31,55 @@ export const findAll = args =>
     }`,
     args
   );
+};
 
-export const findByEntity = args =>
-  paginate(
+export const findByEntity = args => {
+  return paginate(
     `match $m isa Marking-Definition; 
     $rel(marking:$m, so:$so) isa object_marking_refs; 
-    $so has internal_id "${escapeString(args.objectId)}"`,
+    $so has internal_id_key "${escapeString(args.objectId)}"`,
     args,
     false,
     null,
     false,
     false
   );
+};
 
-export const findByDefinition = args =>
-  paginate(
+export const findByDefinition = args => {
+  return paginate(
     `match $m isa Marking-Definition; 
     $m has definition_type "${escapeString(args.definition_type)}"; 
     $m has definition "${escapeString(args.definition)}"`,
     args,
     false
   );
+};
 
-export const findByStixId = args =>
-  paginate(
+export const findByStixId = args => {
+  return paginate(
     `match $m isa Marking-Definition; 
-    $m has stix_id "${escapeString(args.stix_id)}"`,
+    $m has stix_id_key "${escapeString(args.stix_id_key)}"`,
     args,
     false
   );
+};
 
 export const findById = markingDefinitionId => getById(markingDefinitionId);
 
 export const addMarkingDefinition = async (user, markingDefinition) => {
-  const wTx = await takeWriteTx();
-  const internalId = markingDefinition.internal_id
-    ? escapeString(markingDefinition.internal_id)
-    : uuid();
-  const markingDefinitionIterator = await wTx.tx
-    .query(`insert $markingDefinition isa Marking-Definition,
-    has internal_id "${internalId}",
+  const markingId = await executeWrite(async wTx => {
+    const internalId = markingDefinition.internal_id_key
+      ? escapeString(markingDefinition.internal_id_key)
+      : uuid();
+    const now = graknNow();
+    const markingDefinitionIterator = await wTx.tx
+      .query(`insert $markingDefinition isa Marking-Definition,
+    has internal_id_key "${internalId}",
     has entity_type "marking-definition",
-    has stix_id "${
-      markingDefinition.stix_id
-        ? escapeString(markingDefinition.stix_id)
+    has stix_id_key "${
+      markingDefinition.stix_id_key
+        ? escapeString(markingDefinition.stix_id_key)
         : `marking-definition--${uuid()}`
     }",
     has definition_type "${escapeString(markingDefinition.definition_type)}",
@@ -82,37 +87,25 @@ export const addMarkingDefinition = async (user, markingDefinition) => {
     has color "${escapeString(markingDefinition.color)}",
     has level ${markingDefinition.level},
     has created ${
-      markingDefinition.created ? prepareDate(markingDefinition.created) : now()
+      markingDefinition.created ? prepareDate(markingDefinition.created) : now
     },
     has modified ${
-      markingDefinition.modified
-        ? prepareDate(markingDefinition.modified)
-        : now()
+      markingDefinition.modified ? prepareDate(markingDefinition.modified) : now
     },
     has revoked false,
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}",       
-    has updated_at ${now()};
+    has created_at ${now},
+    has created_at_day "${dayFormat(now)}",
+    has created_at_month "${monthFormat(now)}",
+    has created_at_year "${yearFormat(now)}",       
+    has updated_at ${now};
   `);
-  const createMarkingDefinition = await markingDefinitionIterator.next();
-  const createdMarkingDefinitionId = await createMarkingDefinition
-    .map()
-    .get('markingDefinition').id;
-
-  if (markingDefinition.createdByRef) {
-    await wTx.tx.query(
-      `match $from id ${createdMarkingDefinitionId};
-      $to has internal_id "${escapeString(markingDefinition.createdByRef)}";
-      insert (so: $from, creator: $to)
-      isa created_by_ref, has internal_id "${uuid()}";`
-    );
-  }
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created =>
+    const createMarkingDef = await markingDefinitionIterator.next();
+    const createdId = await createMarkingDef.map().get('markingDefinition').id;
+    // Create associated relations
+    await linkCreatedByRef(wTx, createdId, markingDefinition.createdByRef);
+    return internalId;
+  });
+  return getById(markingId).then(created =>
     notify(BUS_TOPICS.MarkingDefinition.ADDED_TOPIC, created, user)
   );
 };

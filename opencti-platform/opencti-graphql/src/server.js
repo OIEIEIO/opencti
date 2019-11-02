@@ -24,6 +24,7 @@ import { authentication, setAuthenticationCookie } from './domain/user';
 import schema from './schema/schema';
 import { buildValidationError, TYPE_AUTH, Unknown } from './config/errors';
 import init from './initialization';
+import { downloadFile, loadFile } from './database/minio';
 
 // Init the http server
 const app = express();
@@ -33,6 +34,8 @@ app.use(helmet());
 app.use(bodyParser.json({ limit: '100mb' }));
 
 // Static for generated fronted
+const extractTokenFromBearer = bearer =>
+  bearer && bearer.length > 10 ? bearer.substring('Bearer '.length) : null;
 const AppBasePath = nconf.get('app:base_path');
 const basePath =
   isEmpty(AppBasePath) || AppBasePath.startsWith('/')
@@ -48,9 +51,32 @@ app.use('/static/css/*', (req, res) => {
   res.header('Content-Type', 'text/css');
   return res.send(withBasePath);
 });
-// -- render other statics in standard way
+// -- Render other statics in standard way
 app.use('/static', express.static(path.join(__dirname, '../public/static')));
-
+// -- File download
+app.use('/storage/get/:file(*)', async (req, res) => {
+  let token = req.cookies ? req.cookies[OPENCTI_TOKEN] : null;
+  token = token || extractTokenFromBearer(req.headers.authorization);
+  const auth = await authentication(token);
+  if (!auth) res.sendStatus(403);
+  const { file } = req.params;
+  const stream = await downloadFile(file);
+  res.attachment(file);
+  stream.pipe(res);
+});
+// -- File view
+app.use('/storage/view/:file(*)', async (req, res) => {
+  let token = req.cookies ? req.cookies[OPENCTI_TOKEN] : null;
+  token = token || extractTokenFromBearer(req.headers.authorization);
+  const auth = await authentication(token);
+  if (!auth) res.sendStatus(403);
+  const { file } = req.params;
+  const data = await loadFile(file);
+  res.setHeader('Content-disposition', `inline; filename="${data.name}"`);
+  res.setHeader('Content-type', data.metaData.mimetype);
+  const stream = await downloadFile(file);
+  stream.pipe(res);
+});
 // region Login
 const urlencodedParser = bodyParser.urlencoded({ extended: true });
 app.get('/auth/:provider', (req, res, next) => {
@@ -70,9 +96,6 @@ app.get(
     })(req, res, next);
   }
 );
-
-const extractTokenFromBearer = bearer =>
-  bearer && bearer.length > 10 ? bearer.substring('Bearer '.length) : null;
 // endregion
 
 const server = new ApolloServer({

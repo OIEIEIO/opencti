@@ -22,13 +22,13 @@ directive @constraint(
 scalar DateTime
 scalar ConstraintString
 scalar ConstraintNumber
-
-### Upload
-input Upload {
-  name: String!
-  type: String!
-  size: Int!
-  base64: String!
+scalar Upload
+enum Status {
+  wait
+  progress
+  partial
+  complete
+  error
 }
 
 ### Relations
@@ -36,17 +36,14 @@ type RelationEmbedded {
   id: ID!
   entity_type: String!
 }
-
 type RelationData {
   node: GlobalObject
   relation: RelationEmbedded
 }
-
 type createdByRef {
   node: Identity
   relation: RelationEmbedded
 }
-
 type ownedBy {
   node: User
   relation: RelationEmbedded
@@ -136,6 +133,7 @@ type OverviewMetrics {
   message_stats: MessagesStats
 }
 type RabbitMQMetrics {
+  consumers: Int
   queues: [QueueMetrics]
   overview: OverviewMetrics
 }
@@ -229,7 +227,7 @@ type TagEdge {
 }
 type Tag {
   id: ID!
-  internal_id: String!
+  internal_id_key: String!
   tag_type: String!
   value: String!
   color: String!
@@ -238,46 +236,127 @@ type Tag {
   updated_at: DateTime!
 }
 input TagAddInput {
-  internal_id: String
+  internal_id_key: String
   tag_type: String!
   value: String!
   color: String!
   clientMutationId: String
 }
 
-### Export
-type Export {
+### Connectors
+enum ConnectorType {
+  EXTERNAL_IMPORT
+  INTERNAL_IMPORT_FILE
+  INTERNAL_ENRICHMENT
+  INTERNAL_EXPORT_FILE
+}
+input RegisterConnectorInput {
   id: ID!
-  description: String
-  object_status: Int
-  export_type: String
-  raw_data: String
+  name: String!
+  type: ConnectorType!
+  scope: [String!]
+}
+type ConnectorConfig {
+  uri: String!
+  listen: String!
+  listen_exchange: String!
+  push: String!
+  push_exchange: String!
+}
+type Connector {
+  id: ID!
+  internal_id_key: ID!
+  name: String!
+  active: Boolean
+  connector_type: String
+  connector_state: String
+  connector_scope: [String!]
+  updated_at: DateTime
   created_at: DateTime
+  config: ConnectorConfig
+}
+
+### Files
+type Job {
+  id: ID!
+  internal_id_key: ID!
+  messages: [String]
+  job_status: Status!
+  created_at: DateTime!
+  updated_at: DateTime!
+}
+type Work {
+  id: ID!
+  internal_id_key: ID!
+  jobs: [Job]
+  status: Status!
+  connector: Connector!
+  work_type: String!
+  created_at: DateTime!
+}
+type WorkEdge {
+  cursor: String!
+  node: Work!
+}
+type WorkConnection {
+  pageInfo: PageInfo!
+  edges: [WorkEdge]
+}
+enum FileCategory {
+  import
+  export
+}
+type FileMetadata {
+  category: FileCategory!
+  encoding: String
+  mimetype: String
+}
+type File {
+  id: ID!
+  name: String
+  size: Int
+  lastModified: DateTime
+  lastModifiedSinceMin: Int
+  metaData: FileMetadata
+  uploadStatus: Status!
+  works: [Work]
+}
+type FileEdge {
+  cursor: String!
+  node: File!
+}
+type FileConnection {
+  pageInfo: PageInfo!
+  edges: [FileEdge]
 }
 
 ### Global objects
 interface GlobalObject {
   id: ID!
-  internal_id: String!
+  internal_id_key: String!
   entity_type: String!
 }
 
 ### STIX objects
 interface StixEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
   description: String
+  tags: TagConnection
+  reports: ReportConnection
+  editContext: [EditUserContext]
+  createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -323,49 +402,26 @@ type StixDomainEntityEdge {
 }
 interface StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  name: String!
+  alias: [String]
+  stix_id_key: String!
+  internal_id_key: String!
   entity_type: String!
   parent_type: String!
-  name: String!
   description: String
-  alias: [String]
   graph_data: String
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
   tags: TagConnection
-  exports(types: [String]!): [Export]
-  stixRelations(
-    first: Int
-    after: ID
-    orderBy: StixRelationsOrdering
-    orderMode: OrderingMode
-    stix_id: String
-    fromId: String
-    inferred: Boolean
-    toId: String
-    fromTypes: [String]
-    toTypes: [String]
-    relationType: String
-    resolveInferences: Boolean
-    resolveRelationType: String
-    resolveRelationRole: String
-    resolveRelationToTypes: [String]
-    resolveViaTypes: [EntityRelation]
-    firstSeenStart: DateTime
-    firstSeenStop: DateTime
-    lastSeenStart: DateTime
-    lastSeenStop: DateTime
-    weights: [Int]
-    search: String
-    infrastructure: Boolean
-  ): StixRelationConnection
+  reports: ReportConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   created_at: DateTime!
   updated_at: DateTime!
 }
 input StixDomainEntityAddInput {
-  internal_id: String
+  internal_id_key: String
   name: String!
   description: String
   alias: [String]
@@ -401,8 +457,8 @@ type StixObservableEdge {
 }
 type StixObservable implements GlobalObject & StixEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -415,13 +471,12 @@ type StixObservable implements GlobalObject & StixEntity {
   markingDefinitions: MarkingDefinitionConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -441,12 +496,14 @@ type StixObservable implements GlobalObject & StixEntity {
     search: String
     infrastructure: Boolean
   ): StixRelationConnection
+  jobs(first: Int): [Work]
+  connectors(onlyAlive: Boolean): [Connector]
   created_at: DateTime!
   updated_at: DateTime!
 }
 input StixObservableAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   type: String!
   observable_value: String!
   description: String
@@ -459,7 +516,7 @@ input StixObservableAddInput {
 
 ### STIX relations
 enum StixRelationsOrdering {
-  stix_id
+  stix_id_key
   relationship_type
   weight
   first_seen
@@ -480,8 +537,8 @@ type StixRelationEdge {
 }
 type StixRelation implements GlobalObject & StixEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -499,6 +556,7 @@ type StixRelation implements GlobalObject & StixEntity {
   role_played: String
   editContext: [EditUserContext]
   createdByRef: createdByRef
+  killChainPhases: KillChainPhaseConnection
   markingDefinitions: MarkingDefinitionConnection
   tags: TagConnection
   reports: ReportConnection
@@ -512,7 +570,7 @@ type StixRelation implements GlobalObject & StixEntity {
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -536,8 +594,8 @@ type StixRelation implements GlobalObject & StixEntity {
   updated_at: DateTime
 }
 input StixRelationAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   fromId: String!
   fromRole: String!
   toId: String!
@@ -552,6 +610,7 @@ input StixRelationAddInput {
   last_seen: DateTime
   createdByRef: String
   markingDefinitions: [String]
+  killChainPhases: [String]
   clientMutationId: String
   created: DateTime
   modified: DateTime
@@ -574,7 +633,7 @@ type WorkspaceEdge {
 }
 type Workspace implements GlobalObject {
   id: ID!
-  internal_id: String!
+  internal_id_key: String!
   entity_type: String!
   workspace_type: String!
   name: String!
@@ -592,7 +651,7 @@ type Workspace implements GlobalObject {
 input WorkspaceAddInput {
   name: String!
   workspace_type: String!
-  internal_id: String
+  internal_id_key: String
   description: String
   markingDefinitions: [String]
   clientMutationId: String
@@ -600,7 +659,7 @@ input WorkspaceAddInput {
 
 ### Identities
 enum IdentitiesOrdering {
-  stix_id
+  stix_id_key
   name
   created_at
   updated_at
@@ -616,8 +675,8 @@ type IdentityEdge {
 }
 interface Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -628,13 +687,12 @@ interface Identity {
   markingDefinitions: MarkingDefinitionConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -658,10 +716,11 @@ interface Identity {
   modified: DateTime
 }
 input IdentityAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
+  alias: [String]
   type: String!
   markingDefinitions: [String]
   tags: [String]
@@ -698,8 +757,8 @@ type UserEdge {
 }
 type User implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -718,16 +777,17 @@ type User implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
   tags: TagConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   token: String
   groups: GroupConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -751,8 +811,8 @@ type User implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   updated_at: DateTime!
 }
 input UserAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   email: String @constraint(minLength: 5, format: "email")
   name: String! @constraint(minLength: 3)
   description: String
@@ -761,6 +821,7 @@ input UserAddInput {
   lastname: String
   language: String
   grant: [UserRole]
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -768,8 +829,8 @@ input UserAddInput {
   modified: DateTime
 }
 input PersonAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String! @constraint(minLength: 3)
   description: String
   firstname: String
@@ -784,7 +845,7 @@ input UserLoginInput {
 
 ### Organizations
 enum OrganizationsOrdering {
-  stix_id
+  stix_id_key
   name
   description
   organization_class
@@ -808,8 +869,8 @@ type OrganizationEdge {
 }
 type Organization implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -824,15 +885,16 @@ type Organization implements GlobalObject & StixEntity & StixDomainEntity & Iden
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -856,11 +918,12 @@ type Organization implements GlobalObject & StixEntity & StixDomainEntity & Iden
   updated_at: DateTime!
 }
 input OrganizationAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
   organization_class: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -871,7 +934,7 @@ input OrganizationAddInput {
 
 ### Sectors
 enum SectorsOrdering {
-  stix_id
+  stix_id_key
   name
   description
   created
@@ -895,8 +958,8 @@ type SectorEdge {
 }
 type Sector implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -912,15 +975,16 @@ type Sector implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -944,10 +1008,11 @@ type Sector implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   updated_at: DateTime!
 }
 input SectorAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -958,7 +1023,7 @@ input SectorAddInput {
 
 ### Cities
 enum CitiesOrdering {
-  stix_id
+  stix_id_key
   name
   description
   created
@@ -981,8 +1046,8 @@ type CityEdge {
 }
 type City implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -996,15 +1061,16 @@ type City implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1028,10 +1094,11 @@ type City implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   updated_at: DateTime!
 }
 input CityAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1042,7 +1109,7 @@ input CityAddInput {
 
 ### Countries
 enum CountriesOrdering {
-  stix_id
+  stix_id_key
   name
   description
   created
@@ -1065,8 +1132,8 @@ type CountryEdge {
 }
 type Country implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1080,15 +1147,16 @@ type Country implements GlobalObject & StixEntity & StixDomainEntity & Identity 
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1112,10 +1180,11 @@ type Country implements GlobalObject & StixEntity & StixDomainEntity & Identity 
   updated_at: DateTime!
 }
 input CountryAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1126,7 +1195,7 @@ input CountryAddInput {
 
 ### Regions
 enum RegionsOrdering {
-  stix_id
+  stix_id_key
   name
   description
   created
@@ -1149,8 +1218,8 @@ type RegionEdge {
 }
 type Region implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1164,15 +1233,16 @@ type Region implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1196,10 +1266,11 @@ type Region implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   updated_at: DateTime!
 }
 input RegionAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1225,7 +1296,7 @@ type GroupEdge {
 }
 type Group implements GlobalObject {
   id: ID!
-  internal_id: String!
+  internal_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1237,7 +1308,7 @@ type Group implements GlobalObject {
   updated_at: DateTime!
 }
 input GroupAddInput {
-  internal_id: String
+  internal_id_key: String
   name: String!
   description: String
   markingDefinitions: [String]
@@ -1246,7 +1317,7 @@ input GroupAddInput {
 
 ### Marking definitions
 enum MarkingDefinitionsOrdering {
-  stix_id
+  stix_id_key
   definition_type
   definition
   level
@@ -1267,8 +1338,8 @@ type MarkingDefinitionEdge {
 }
 type MarkingDefinition implements GlobalObject {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   definition_type: String!
   definition: String!
@@ -1282,8 +1353,8 @@ type MarkingDefinition implements GlobalObject {
   updated_at: DateTime!
 }
 input MarkingDefinitionAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   definition_type: String!
   definition: String!
   level: Int!
@@ -1295,7 +1366,7 @@ input MarkingDefinitionAddInput {
 
 ### ExternalReferences
 enum ExternalReferencesOrdering {
-  stix_id
+  stix_id_key
   source_name
   url
   hash
@@ -1316,8 +1387,8 @@ type ExternalReferenceEdge {
 }
 type ExternalReference implements GlobalObject {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   source_name: String!
   description: String
@@ -1332,8 +1403,8 @@ type ExternalReference implements GlobalObject {
   updated_at: DateTime!
 }
 input ExternalReferenceAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   source_name: String!
   description: String
   url: String
@@ -1346,7 +1417,7 @@ input ExternalReferenceAddInput {
 
 ### KillChain Phases
 enum KillChainPhasesOrdering {
-  stix_id
+  stix_id_key
   phase_order
   kill_chain_name
   phase_name
@@ -1364,8 +1435,8 @@ type KillChainPhaseEdge {
 }
 type KillChainPhase implements GlobalObject {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   kill_chain_name: String!
   phase_name: String!
@@ -1379,8 +1450,8 @@ type KillChainPhase implements GlobalObject {
   updated_at: DateTime!
 }
 input KillChainPhaseAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   kill_chain_name: String!
   phase_name: String!
   phase_order: Int!
@@ -1392,7 +1463,7 @@ input KillChainPhaseAddInput {
 
 ### AttackPattern
 enum AttackPatternsOrdering {
-  stix_id
+  stix_id_key
   name
   killChainPhases
   created
@@ -1416,8 +1487,8 @@ type AttackPatternEdge {
 }
 type AttackPattern implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1433,17 +1504,18 @@ type AttackPattern implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   externalReferences: ExternalReferenceConnection
   killChainPhases: KillChainPhaseConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1467,12 +1539,13 @@ type AttackPattern implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input AttackPatternAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   platform: [String]
   required_permission: [String]
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1484,7 +1557,7 @@ input AttackPatternAddInput {
 
 ### CourseOfAction
 enum CoursesOfActionOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -1507,8 +1580,8 @@ type CourseOfActionEdge {
 }
 type CourseOfAction implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1522,15 +1595,16 @@ type CourseOfAction implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1554,10 +1628,11 @@ type CourseOfAction implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input CourseOfActionAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
+  alias: [String]
   markingDefinitions: [String]
   tags: [String]
   clientMutationId: String
@@ -1567,7 +1642,7 @@ input CourseOfActionAddInput {
 
 ### Threat Actors
 enum ThreatActorsOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -1589,8 +1664,8 @@ type ThreatActorEdge {
 }
 type ThreatActor implements GlobalObject & StixEntity & StixDomainEntity & Identity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1611,15 +1686,16 @@ type ThreatActor implements GlobalObject & StixEntity & StixDomainEntity & Ident
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1643,8 +1719,8 @@ type ThreatActor implements GlobalObject & StixEntity & StixDomainEntity & Ident
   updated_at: DateTime!
 }
 input ThreatActorAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   goal: String
@@ -1653,6 +1729,7 @@ input ThreatActorAddInput {
   primary_motivation: String
   secondary_motivation: String
   personal_motivation: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1663,7 +1740,7 @@ input ThreatActorAddInput {
 
 ### IntrusionSets
 enum IntrusionSetsOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -1685,8 +1762,8 @@ type IntrusionSetEdge {
 }
 type IntrusionSet implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1707,15 +1784,16 @@ type IntrusionSet implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1739,8 +1817,8 @@ type IntrusionSet implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input IntrusionSetAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   first_seen: DateTime
@@ -1751,6 +1829,7 @@ input IntrusionSetAddInput {
   primary_motivation: String
   secondary_motivation: String
   personal_motivation: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1761,7 +1840,7 @@ input IntrusionSetAddInput {
 
 ### Campaign
 enum CampaignsOrdering {
-  stix_id
+  stix_id_key
   name
   first_seen
   last_seen
@@ -1785,8 +1864,8 @@ type CampaignEdge {
 }
 type Campaign implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1803,15 +1882,16 @@ type Campaign implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1835,13 +1915,14 @@ type Campaign implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input CampaignAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   first_seen: DateTime
   last_seen: DateTime
   objective: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1852,7 +1933,7 @@ input CampaignAddInput {
 
 ### Incident
 enum IncidentsOrdering {
-  stix_id
+  stix_id_key
   name
   first_seen
   last_seen
@@ -1876,8 +1957,8 @@ type IncidentEdge {
 }
 type Incident implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1894,15 +1975,16 @@ type Incident implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -1926,13 +2008,14 @@ type Incident implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input IncidentAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   objective: String
   first_seen: DateTime
   last_seen: DateTime
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -1943,7 +2026,7 @@ input IncidentAddInput {
 
 ### Malware
 enum MalwaresOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -1965,8 +2048,8 @@ type MalwareEdge {
 }
 type Malware implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -1980,16 +2063,17 @@ type Malware implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   killChainPhases: KillChainPhaseConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -2013,10 +2097,11 @@ type Malware implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input MalwareAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -2028,7 +2113,7 @@ input MalwareAddInput {
 
 ### Tool
 enum ToolsOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -2050,8 +2135,8 @@ type ToolEdge {
 }
 type Tool implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -2066,16 +2151,17 @@ type Tool implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   killChainPhases: KillChainPhaseConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -2099,11 +2185,12 @@ type Tool implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input ToolAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
   tool_version: String
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -2115,7 +2202,7 @@ input ToolAddInput {
 
 ### Vulnerability
 enum VulnerabilitiesOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -2137,8 +2224,8 @@ type VulnerabilityEdge {
 }
 type Vulnerability implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -2152,15 +2239,16 @@ type Vulnerability implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   reports: ReportConnection
-  exports(types: [String]!): [Export]
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -2184,10 +2272,11 @@ type Vulnerability implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input VulnerabilityAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String!
+  alias: [String]
   createdByRef: String
   markingDefinitions: [String]
   tags: [String]
@@ -2198,7 +2287,7 @@ input VulnerabilityAddInput {
 
 ### Reports
 enum ReportsOrdering {
-  stix_id
+  stix_id_key
   name
   created
   modified
@@ -2227,8 +2316,8 @@ type ReportPayload {
 }
 type Report implements GlobalObject & StixEntity & StixDomainEntity {
   id: ID!
-  internal_id: String!
-  stix_id: String!
+  internal_id_key: String!
+  stix_id_key: String!
   entity_type: String!
   parent_type: String!
   name: String!
@@ -2246,18 +2335,20 @@ type Report implements GlobalObject & StixEntity & StixDomainEntity {
   editContext: [EditUserContext]
   createdByRef: createdByRef
   markingDefinitions: MarkingDefinitionConnection
+  reports: ReportConnection
+  importFiles(first: Int): FileConnection
+  exportFiles(first: Int): FileConnection
   tags: TagConnection
   externalReferences: ExternalReferenceConnection
   objectRefs: StixDomainEntityConnection
   observableRefs: StixObservableConnection
-  relationRefs(relationType: String): StixRelationConnection
-  exports(types: [String]!): [Export]
+  relationRefs(relationType: String, knowledgeLevels: [String]): StixRelationConnection
   stixRelations(
     first: Int
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -2281,8 +2372,8 @@ type Report implements GlobalObject & StixEntity & StixDomainEntity {
   updated_at: DateTime!
 }
 input ReportAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   name: String!
   description: String
   published: DateTime
@@ -2300,8 +2391,8 @@ input ReportAddInput {
 
 ### Relations
 input RelationAddInput {
-  internal_id: String
-  stix_id: String
+  internal_id_key: String
+  stix_id_key: String
   fromRole: String!
   toId: ID!
   toRole: String!
@@ -2345,8 +2436,12 @@ type Query {
     search: String
   ): TagConnection @auth
   rabbitMQMetrics(prefix: String): RabbitMQMetrics @auth(for: ROLE_ADMIN)
+  connectors: [Connector] @auth
+  connectorsForExport: [Connector] @auth
+  connectorsForImport: [Connector] @auth
+  importFiles(first: Int): FileConnection @auth
   # StixEntities
-  stixEntity(id: String): StixEntity @auth
+  stixEntity(id: String, isStixId: Boolean): StixEntity @auth
   # StixDomainEntities
   stixDomainEntity(id: String): StixDomainEntity @auth
   stixDomainEntities(
@@ -2358,7 +2453,7 @@ type Query {
     filterMode: FilterMode
     name: String
     names: [String]
-    stix_id: String
+    stix_id_key: String
     search: String
     externalReferenceId: String
     type: String
@@ -2378,6 +2473,7 @@ type Query {
   stixObservables(
     first: Int
     after: ID
+    stix_id: String
     orderBy: StixObservablesOrdering
     orderMode: OrderingMode
     filters: StixObservablesFiltering
@@ -2400,7 +2496,7 @@ type Query {
     after: ID
     orderBy: StixRelationsOrdering
     orderMode: OrderingMode
-    stix_id: String
+    stix_id_key: String
     fromId: String
     inferred: Boolean
     toId: String
@@ -2568,7 +2664,7 @@ type Query {
     orderMode: OrderingMode
     definition_type: String
     definition: String
-    stix_id: String
+    stix_id_key: String
     objectId: String
     search: String
   ): MarkingDefinitionConnection @auth
@@ -2794,11 +2890,11 @@ type StixDomainEntityEditMutations {
   contextPatch(input: EditContext): StixDomainEntity
   contextClean: StixDomainEntity
   relationAdd(input: RelationAddInput): RelationData
+  relationsAdd(input: RelationsAddInput): StixEntity
   relationDelete(relationId: ID!): RelationData
-  relationsAdd(input: RelationsAddInput): StixDomainEntity
-  refreshExport(entityType: String!, type: String!): StixDomainEntity
-  exportPush(exportId: String!, rawData: String!): Boolean
-    @auth(for: ROLE_ADMIN)
+  importPush(file: Upload!): File @auth
+  exportAsk(format: String!, exportType: String!): [File]
+  exportPush(file: Upload!): Boolean @auth(for: ROLE_ADMIN)
 }
 
 # StixObservable
@@ -2809,6 +2905,7 @@ type StixObservableEditMutations {
   contextClean: StixObservable
   relationAdd(input: RelationAddInput): RelationData
   relationDelete(relationId: ID!): RelationData
+  askEnrichment(connectorId: ID!): Work
 }
 
 # StixRelation
@@ -3053,11 +3150,19 @@ type Mutation {
   # Attribute
   attributeAdd(input: AttributeAddInput): Attribute @auth(for: ROLE_ADMIN)
   attributeEdit(id: ID!): AttributeEditMutations @auth(for: ROLE_ADMIN)
+  # Connector
+  pingConnector(id: ID!, state: String): Connector @auth(for: ROLE_ADMIN)
+  registerConnector(input: RegisterConnectorInput): Connector @auth(for: ROLE_ADMIN)
+  deleteWork(id: ID!): ID! @auth
+  initiateJob(workId: ID!): Job @auth
+  updateJob(jobId: ID!, status: Status!, messages: [String]): Job @auth
+  # File management
+  deleteImport(fileName: String): Boolean @auth
+  uploadImport(file: Upload!): File @auth
+  askJobImport(fileName: ID!): File @auth
   # Tag
   tagAdd(input: TagAddInput): Tag
   tagEdit(id: ID!): TagEditMutations @auth(for: ROLE_ADMIN)
-  # Import data
-  importData(type: String!, file: Upload!): Boolean @auth
   # StixDomainEntity
   stixDomainEntityAdd(input: StixDomainEntityAddInput): StixDomainEntity @auth
   stixDomainEntityEdit(id: ID!): StixDomainEntityEditMutations @auth

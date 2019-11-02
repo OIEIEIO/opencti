@@ -1,77 +1,92 @@
-import { assoc, map } from 'ramda';
+import { assoc, head, join, map, tail } from 'ramda';
 import uuid from 'uuid/v4';
 import {
-  escapeString,
-  takeWriteTx,
-  getById,
   dayFormat,
+  escapeString,
+  executeWrite,
+  getById,
+  graknNow,
   monthFormat,
-  yearFormat,
-  prepareDate,
   notify,
-  now,
-  commitWriteTx
+  prepareDate,
+  yearFormat
 } from '../database/grakn';
 import { paginate as elPaginate } from '../database/elasticSearch';
 import { BUS_TOPICS, logger } from '../config/conf';
+import { linkCreatedByRef, linkMarkingDef } from './stixEntity';
 
-export const findAll = args =>
-  elPaginate('stix_domain_entities', assoc('type', 'intrusion-set', args));
+export const findAll = args => {
+  return elPaginate(
+    'stix_domain_entities',
+    assoc('type', 'intrusion-set', args)
+  );
+};
 
 export const findById = intrusionSetId => getById(intrusionSetId);
 
 export const addIntrusionSet = async (user, intrusionSet) => {
-  const wTx = await takeWriteTx();
-  const internalId = intrusionSet.internal_id
-    ? escapeString(intrusionSet.internal_id)
-    : uuid();
-  const query = `insert $intrusionSet isa Intrusion-Set,
-    has internal_id "${internalId}",
+  const intrusionId = await executeWrite(async wTx => {
+    const internalId = intrusionSet.internal_id_key
+      ? escapeString(intrusionSet.internal_id_key)
+      : uuid();
+    const now = graknNow();
+    const query = `insert $intrusionSet isa Intrusion-Set,
+    has internal_id_key "${internalId}",
     has entity_type "intrusion-set",
-    has stix_id "${
-      intrusionSet.stix_id
-        ? escapeString(intrusionSet.stix_id)
+    has stix_id_key "${
+      intrusionSet.stix_id_key
+        ? escapeString(intrusionSet.stix_id_key)
         : `intrusion-set--${uuid()}`
     }",
     has stix_label "",
-    has alias "",
+    ${
+      intrusionSet.alias
+        ? `${join(
+            ' ',
+            map(
+              val => `has alias "${escapeString(val)}",`,
+              tail(intrusionSet.alias)
+            )
+          )} has alias "${escapeString(head(intrusionSet.alias))}",`
+        : 'has alias "",'
+    }
     has name "${escapeString(intrusionSet.name)}",
     has description "${escapeString(intrusionSet.description)}",
     has first_seen ${
-      intrusionSet.first_seen ? prepareDate(intrusionSet.first_seen) : now()
+      intrusionSet.first_seen ? prepareDate(intrusionSet.first_seen) : now
     },
     has first_seen_day "${
       intrusionSet.first_seen
         ? dayFormat(intrusionSet.first_seen)
-        : dayFormat(now())
+        : dayFormat(now)
     }",
     has first_seen_month "${
       intrusionSet.first_seen
         ? monthFormat(intrusionSet.first_seen)
-        : monthFormat(now())
+        : monthFormat(now)
     }",
     has first_seen_year "${
       intrusionSet.first_seen
         ? yearFormat(intrusionSet.first_seen)
-        : yearFormat(now())
+        : yearFormat(now)
     }",
     has last_seen ${
-      intrusionSet.last_seen ? prepareDate(intrusionSet.last_seen) : now()
+      intrusionSet.last_seen ? prepareDate(intrusionSet.last_seen) : now
     },
     has last_seen_day "${
       intrusionSet.last_seen
         ? dayFormat(intrusionSet.last_seen)
-        : dayFormat(now())
+        : dayFormat(now)
     }",
     has last_seen_month "${
       intrusionSet.last_seen
         ? monthFormat(intrusionSet.last_seen)
-        : monthFormat(now())
+        : monthFormat(now)
     }",
     has last_seen_year "${
       intrusionSet.last_seen
         ? yearFormat(intrusionSet.last_seen)
-        : yearFormat(now())
+        : yearFormat(now)
     }",
     has goal "${escapeString(intrusionSet.goal)}",
     has sophistication "${escapeString(intrusionSet.sophistication)}",
@@ -81,51 +96,29 @@ export const addIntrusionSet = async (user, intrusionSet) => {
       intrusionSet.secondary_motivation
     )}",
     has created ${
-      intrusionSet.created ? prepareDate(intrusionSet.created) : now()
+      intrusionSet.created ? prepareDate(intrusionSet.created) : now
     },
     has modified ${
-      intrusionSet.modified ? prepareDate(intrusionSet.modified) : now()
+      intrusionSet.modified ? prepareDate(intrusionSet.modified) : now
     },
     has revoked false,
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}",       
-    has updated_at ${now()};
+    has created_at ${now},
+    has created_at_day "${dayFormat(now)}",
+    has created_at_month "${monthFormat(now)}",
+    has created_at_year "${yearFormat(now)}",       
+    has updated_at ${now};
   `;
-  logger.debug(`[GRAKN - infer: false] addIntrusionSet > ${query}`);
-  const intrusionSetIterator = await wTx.tx.query(query);
-  const createIntrusionSet = await intrusionSetIterator.next();
-  const createdIntrusionSetId = await createIntrusionSet
-    .map()
-    .get('intrusionSet').id;
+    logger.debug(`[GRAKN - infer: false] addIntrusionSet > ${query}`);
+    const intrusionSetIterator = await wTx.tx.query(query);
+    const createIntrusionSet = await intrusionSetIterator.next();
+    const createdId = await createIntrusionSet.map().get('intrusionSet').id;
 
-  if (intrusionSet.createdByRef) {
-    await wTx.tx.query(
-      `match $from id ${createdIntrusionSetId};
-      $to has internal_id "${escapeString(intrusionSet.createdByRef)}";
-      insert (so: $from, creator: $to)
-      isa created_by_ref, has internal_id "${uuid()}";`
-    );
-  }
-
-  if (intrusionSet.markingDefinitions) {
-    const createMarkingDefinition = markingDefinition =>
-      wTx.tx.query(
-        `match $from id ${createdIntrusionSetId}; 
-        $to has internal_id "${escapeString(markingDefinition)}"; 
-        insert (so: $from, marking: $to) isa object_marking_refs, has internal_id "${uuid()}";`
-      );
-    const markingDefinitionsPromises = map(
-      createMarkingDefinition,
-      intrusionSet.markingDefinitions
-    );
-    await Promise.all(markingDefinitionsPromises);
-  }
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created => {
+    // Create associated relations
+    await linkCreatedByRef(wTx, createdId, intrusionSet.createdByRef);
+    await linkMarkingDef(wTx, createdId, intrusionSet.markingDefinitions);
+    return internalId;
+  });
+  return getById(intrusionId).then(created => {
     return notify(BUS_TOPICS.StixDomainEntity.ADDED_TOPIC, created, user);
   });
 };

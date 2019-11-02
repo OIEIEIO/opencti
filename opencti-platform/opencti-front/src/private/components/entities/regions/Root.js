@@ -10,6 +10,7 @@ import TopBar from '../../nav/TopBar';
 import Region from './Region';
 import RegionReports from './RegionReports';
 import RegionKnowledge from './RegionKnowledge';
+import RegionObservables from './RegionObservables';
 
 const subscription = graphql`
   subscription RootRegionsSubscription($id: ID!) {
@@ -29,6 +30,7 @@ const regionQuery = graphql`
       ...RegionOverview_region
       ...RegionReports_region
       ...RegionKnowledge_region
+      ...RegionObservables_region
     }
   }
 `;
@@ -71,14 +73,14 @@ class RootRegion extends Component {
                   <Route
                     exact
                     path="/dashboard/entities/regions/:regionId"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <Region {...routeProps} region={props.region} />
                     )}
                   />
                   <Route
                     exact
                     path="/dashboard/entities/regions/:regionId/reports"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <RegionReports {...routeProps} region={props.region} />
                     )}
                   />
@@ -93,8 +95,17 @@ class RootRegion extends Component {
                   />
                   <Route
                     path="/dashboard/entities/regions/:regionId/knowledge"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <RegionKnowledge {...routeProps} region={props.region} />
+                    )}
+                  />
+                  <Route
+                    path="/dashboard/entities/regions/:regionId/observables"
+                    render={(routeProps) => (
+                      <RegionObservables
+                        {...routeProps}
+                        region={props.region}
+                      />
                     )}
                   />
                 </div>

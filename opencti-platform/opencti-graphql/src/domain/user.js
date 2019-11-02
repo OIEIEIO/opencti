@@ -1,4 +1,4 @@
-import { assoc, head, isNil, join, map, pathOr } from 'ramda';
+import { assoc, head, isNil, join, map, pathOr, tail } from 'ramda';
 import uuid from 'uuid/v4';
 import moment from 'moment';
 import bcrypt from 'bcryptjs';
@@ -13,30 +13,30 @@ import conf, {
   OPENCTI_WEB_TOKEN
 } from '../config/conf';
 import {
-  escapeString,
-  getObject,
-  getById,
-  notify,
-  now,
-  paginate,
-  takeWriteTx,
-  updateAttribute,
-  prepareDate,
   dayFormat,
-  monthFormat,
-  yearFormat,
+  deleteEntityById,
+  escapeString,
+  executeWrite,
+  getById,
+  getObject,
+  graknNow,
   load,
-  commitWriteTx,
-  deleteEntityById
+  monthFormat,
+  notify,
+  paginate,
+  prepareDate,
+  updateAttribute,
+  yearFormat
 } from '../database/grakn';
 import { paginate as elPaginate } from '../database/elasticSearch';
 import { stixDomainEntityDelete } from './stixDomainEntity';
+import { linkCreatedByRef, linkMarkingDef } from './stixEntity';
 
 // Security related
 export const generateOpenCTIWebToken = (tokenValue = uuid()) => ({
   uuid: tokenValue,
   name: OPENCTI_WEB_TOKEN,
-  created: now(),
+  created: graknNow(),
   issuer: OPENCTI_ISSUER,
   revoked: false,
   duration: OPENCTI_DEFAULT_DURATION // 99 years per default
@@ -73,7 +73,7 @@ export const groups = (userId, args) =>
   paginate(
     `match $group isa Group; 
     $rel(grouping:$group, member:$user) isa membership; 
-    $user has internal_id "${escapeString(userId)}"`,
+    $user has internal_id_key "${escapeString(userId)}"`,
     args
   );
 
@@ -84,9 +84,9 @@ export const token = (userId, args, context) => {
   return getObject(
     `match $x isa Token;
     $rel(authorization:$x, client:$client) isa authorize;
-    $client has internal_id "${escapeString(
+    $client has internal_id_key "${escapeString(
       userId
-    )}"; get $x, $rel; offset 0; limit 1;`,
+    )}"; get; offset 0; limit 1;`,
     'x',
     'rel'
   ).then(result => result.node.uuid);
@@ -96,68 +96,60 @@ export const getTokenId = userId => {
   return getObject(
     `match $x isa Token;
     $rel(authorization:$x, client:$client) isa authorize;
-    $client has internal_id "${escapeString(
+    $client has internal_id_key "${escapeString(
       userId
-    )}"; get $x, $rel; offset 0; limit 1;`,
+    )}"; get; offset 0; limit 1;`,
     'x',
     'rel'
   ).then(result => pathOr(null, ['node', 'id'], result));
 };
 
 export const addPerson = async (user, newUser) => {
-  const wTx = await takeWriteTx();
-  const internalId = newUser.internal_id
-    ? escapeString(newUser.internal_id)
-    : uuid();
-  const query = `insert $user isa User,
-    has internal_id "${internalId}",
+  const personId = await executeWrite(async wTx => {
+    const internalId = newUser.internal_id_key
+      ? escapeString(newUser.internal_id_key)
+      : uuid();
+    const query = `insert $user isa User,
+    has internal_id_key "${internalId}",
     has entity_type "user",
-    has stix_id "${
-      newUser.stix_id ? escapeString(newUser.stix_id) : `identity--${uuid()}`
+    has stix_id_key "${
+      newUser.stix_id_key
+        ? escapeString(newUser.stix_id_key)
+        : `identity--${uuid()}`
     }",
     has stix_label "",
-    has alias "",
+    ${
+      newUser.alias
+        ? `${join(
+            ' ',
+            map(val => `has alias "${escapeString(val)}",`, tail(newUser.alias))
+          )} has alias "${escapeString(head(newUser.alias))}",`
+        : 'has alias "",'
+    }
     has name "${escapeString(newUser.name)}",
     has description "${escapeString(newUser.description)}",
-    has created ${newUser.created ? prepareDate(newUser.created) : now()},
-    has modified ${newUser.modified ? prepareDate(newUser.modified) : now()},
+    has created ${newUser.created ? prepareDate(newUser.created) : graknNow()},
+    has modified ${
+      newUser.modified ? prepareDate(newUser.modified) : graknNow()
+    },
     has revoked false,
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}", 
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has created_at_day "${dayFormat(graknNow())}",
+    has created_at_month "${monthFormat(graknNow())}",
+    has created_at_year "${yearFormat(graknNow())}", 
+    has updated_at ${graknNow()};
   `;
-  logger.debug(`[GRAKN - infer: false] addPerson > ${query}`);
-  const userIterator = await wTx.tx.query(query);
-  const createUser = await userIterator.next();
-  const createdUserId = await createUser.map().get('user').id;
+    logger.debug(`[GRAKN - infer: false] addPerson > ${query}`);
+    const userIterator = await wTx.tx.query(query);
+    const createUser = await userIterator.next();
+    const createdUserId = await createUser.map().get('user').id;
 
-  if (newUser.createdByRef) {
-    await wTx.tx.query(`match $from id ${createdUserId};
-         $to has internal_id "${escapeString(newUser.createdByRef)}";
-         insert (so: $from, creator: $to)
-         isa created_by_ref, has internal_id "${uuid()}";`);
-  }
-
-  // Create user marking definitions relations
-  if (newUser.markingDefinitions) {
-    const createMarkingDefinition = markingDefinition =>
-      wTx.tx.query(
-        `match $from id ${createdUserId};
-        $to has internal_id "${escapeString(markingDefinition)}";
-        insert (so: $from, marking: $to) isa object_marking_refs, has internal_id "${uuid()}";`
-      );
-    const markingDefinitionsPromises = map(
-      createMarkingDefinition,
-      newUser.markingDefinitions
-    );
-    await Promise.all(markingDefinitionsPromises);
-  }
-
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created => {
+    // Create associated relations
+    await linkCreatedByRef(wTx, createdUserId, newUser.createdByRef);
+    await linkMarkingDef(wTx, createdUserId, newUser.markingDefinitions);
+    return internalId;
+  });
+  return getById(personId).then(created => {
     return notify(BUS_TOPICS.StixDomainEntity.ADDED_TOPIC, created, user);
   });
 };
@@ -167,15 +159,17 @@ export const addUser = async (
   newUser,
   newToken = generateOpenCTIWebToken()
 ) => {
-  const wTx = await takeWriteTx();
-  const internalId = newUser.internal_id
-    ? escapeString(newUser.internal_id)
-    : uuid();
-  const query = `insert $user isa User,
-    has internal_id "${internalId}",
+  const userId = await executeWrite(async wTx => {
+    const internalId = newUser.internal_id_key
+      ? escapeString(newUser.internal_id_key)
+      : uuid();
+    const query = `insert $user isa User,
+    has internal_id_key "${internalId}",
     has entity_type "user",
-    has stix_id "${
-      newUser.stix_id ? escapeString(newUser.stix_id) : `identity--${uuid()}`
+    has stix_id_key "${
+      newUser.stix_id_key
+        ? escapeString(newUser.stix_id_key)
+        : `identity--${uuid()}`
     }",
     has stix_label "",
     has alias "",
@@ -194,8 +188,10 @@ export const addUser = async (
         ? `has language "${escapeString(newUser.language)}",`
         : 'has language "auto",'
     }
-    has created ${newUser.created ? prepareDate(newUser.created) : now()},
-    has modified ${newUser.modified ? prepareDate(newUser.modified) : now()},
+    has created ${newUser.created ? prepareDate(newUser.created) : graknNow()},
+    has modified ${
+      newUser.modified ? prepareDate(newUser.modified) : graknNow()
+    },
     ${
       newUser.grant
         ? join(
@@ -205,27 +201,21 @@ export const addUser = async (
         : ''
     }
     has revoked false,
-    has created_at ${now()},
-    has created_at_day "${dayFormat(now())}",
-    has created_at_month "${monthFormat(now())}",
-    has created_at_year "${yearFormat(now())}" ,    
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has created_at_day "${dayFormat(graknNow())}",
+    has created_at_month "${monthFormat(graknNow())}",
+    has created_at_year "${yearFormat(graknNow())}" ,    
+    has updated_at ${graknNow()};
   `;
-  logger.debug(`[GRAKN - infer: false] addUser > ${query}`);
-  const userIterator = await wTx.tx.query(query);
+    logger.debug(`[GRAKN - infer: false] addUser > ${query}`);
+    const userIterator = await wTx.tx.query(query);
 
-  const createUser = await userIterator.next();
-  const createdUserId = await createUser.map().get('user').id;
+    const createUser = await userIterator.next();
+    const createdUserId = await createUser.map().get('user').id;
+    await linkCreatedByRef(wTx, createdUserId, user.createdByRef);
 
-  if (user.createdByRef) {
-    await wTx.tx.query(`match $from id ${createdUserId};
-         $to has internal_id "${escapeString(user.createdByRef)}";
-         insert (so: $from, creator: $to)
-         isa created_by_ref, has internal_id "${uuid()}";`);
-  }
-
-  const tokenIterator = await wTx.tx.query(`insert $token isa Token,
-    has internal_id "${uuid()}",
+    const tokenIterator = await wTx.tx.query(`insert $token isa Token,
+    has internal_id_key "${uuid()}",
     has entity_type "token",
     has uuid "${newToken.uuid}",
     has name "${newToken.name}",
@@ -233,19 +223,19 @@ export const addUser = async (
     has issuer "${newToken.issuer}",
     has revoked ${newToken.revoked},
     has duration "${newToken.duration}",
-    has created_at ${now()},
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has updated_at ${graknNow()};
   `);
 
-  const createdToken = await tokenIterator.next();
-  await createdToken.map().get('token').id;
-  await wTx.tx.query(`match $user isa User, has email "${newUser.email}"; 
+    const createdToken = await tokenIterator.next();
+    await createdToken.map().get('token').id;
+    await wTx.tx.query(`match $user isa User, has email "${newUser.email}"; 
                    $token isa Token, has uuid "${newToken.uuid}"; 
-                   insert (client: $user, authorization: $token) isa authorize, has internal_id "${uuid()}";`);
+                   insert (client: $user, authorization: $token) isa authorize, has internal_id_key "${uuid()}";`);
 
-  await commitWriteTx(wTx);
-
-  return getById(internalId).then(created => {
+    return internalId;
+  });
+  return getById(userId).then(created => {
     return notify(BUS_TOPICS.StixDomainEntity.ADDED_TOPIC, created, user);
   });
 };
@@ -262,7 +252,7 @@ export const loginFromProvider = async (email, name) => {
     const newUser = {
       name,
       email,
-      created: now(),
+      created: graknNow(),
       password: null,
       grant: conf.get('app:default_roles')
     };
@@ -299,14 +289,14 @@ export const userRenewToken = async (
   userId,
   newToken = generateOpenCTIWebToken()
 ) => {
-  const wTx = await takeWriteTx();
-  await wTx.tx.query(
-    `match $user has internal_id "${escapeString(userId)}";
+  await executeWrite(async wTx => {
+    await wTx.tx.query(
+      `match $user has internal_id_key "${escapeString(userId)}";
     $rel(authorization:$token, client:$user);
     delete $rel, $token;`
-  );
-  const tokenIterator = await wTx.tx.query(`insert $token isa Token,
-    has internal_id "${uuid()}",
+    );
+    const tokenIterator = await wTx.tx.query(`insert $token isa Token,
+    has internal_id_key "${uuid()}",
     has entity_type "token",
     has uuid "${newToken.uuid}",
     has name "${newToken.name}",
@@ -314,18 +304,18 @@ export const userRenewToken = async (
     has issuer "${newToken.issuer}",
     has revoked ${newToken.revoked},
     has duration "${newToken.duration}",
-    has created_at ${now()},
-    has updated_at ${now()};
+    has created_at ${graknNow()},
+    has updated_at ${graknNow()};
   `);
-  const createdToken = await tokenIterator.next();
-  await createdToken.map().get('token').id;
-  await wTx.tx.query(
-    `match $user has internal_id "${escapeString(userId)}";
+    const createdToken = await tokenIterator.next();
+    await createdToken.map().get('token').id;
+    await wTx.tx.query(
+      `match $user has internal_id_key "${escapeString(userId)}";
     $token isa Token,
     has uuid "${newToken.uuid}";
-    insert (client: $user, authorization: $token) isa authorize, has internal_id "${uuid()}";`
-  );
-  await commitWriteTx(wTx);
+    insert (client: $user, authorization: $token) isa authorize, has internal_id_key "${uuid()}";`
+    );
+  });
   return getById(userId);
 };
 
@@ -426,8 +416,8 @@ export const initAdmin = async (email, password, tokenValue) => {
     await addUser(
       user,
       {
-        internal_id: OPENCTI_ADMIN_DNS,
-        stix_id: `identity--${OPENCTI_ADMIN_DNS}`,
+        internal_id_key: OPENCTI_ADMIN_DNS,
+        stix_id_key: `identity--${OPENCTI_ADMIN_DNS}`,
         name: 'admin',
         firstname: 'Admin',
         lastname: 'OpenCTI',

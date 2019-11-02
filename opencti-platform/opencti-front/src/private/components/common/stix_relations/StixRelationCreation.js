@@ -11,6 +11,9 @@ import {
   head,
   assoc,
   union,
+  sortWith,
+  ascend,
+  path,
 } from 'ramda';
 import * as Yup from 'yup';
 import { withStyles } from '@material-ui/core/styles';
@@ -36,6 +39,7 @@ import Select from '../../../../components/Select';
 import Autocomplete from '../../../../components/Autocomplete';
 import DatePickerField from '../../../../components/DatePickerField';
 import { markingDefinitionsSearchQuery } from '../../settings/MarkingDefinitions';
+import { killChainPhasesSearchQuery } from '../../settings/KillChainPhases';
 
 const styles = (theme) => ({
   drawerPaper: {
@@ -83,10 +87,10 @@ const styles = (theme) => ({
     position: 'absolute',
     width: 180,
     height: 80,
+    borderRadius: 10,
   },
   itemHeader: {
     padding: '10px 0 10px 0',
-    borderBottom: '1px solid #ffffff',
   },
   icon: {
     position: 'absolute',
@@ -198,9 +202,28 @@ class StixRelationCreation extends Component {
     this.state = {
       step: 0,
       existingRelations: [],
+      killChainPhases: [],
       markingDefinitions: [],
       currentType: null,
     };
+  }
+
+  searchKillchainPhases(event) {
+    fetchQuery(killChainPhasesSearchQuery, {
+      search: event.target.value,
+    }).then((data) => {
+      const killChainPhases = pipe(
+        pathOr([], ['killChainPhases', 'edges']),
+        sortWith([ascend(path(['node', 'order']))]),
+        map((n) => ({
+          label: `[${n.node.kill_chain_name}] ${n.node.phase_name}`,
+          value: n.node.id,
+        })),
+      )(data);
+      this.setState({
+        killChainPhases: union(this.state.killChainPhases, killChainPhases),
+      });
+    });
   }
 
   searchMarkingDefinitions(event) {
@@ -229,6 +252,7 @@ class StixRelationCreation extends Component {
       assoc('toRole', roles.toRole),
       assoc('first_seen', parse(values.first_seen).format()),
       assoc('last_seen', parse(values.last_seen).format()),
+      assoc('killChainPhases', pluck('value', values.killChainPhases)),
       assoc('markingDefinitions', pluck('value', values.markingDefinitions)),
     )(values);
     commitMutation({
@@ -298,6 +322,7 @@ class StixRelationCreation extends Component {
       first_seen: defaultFirstSeen,
       last_seen: defaultLastSeen,
       description: '',
+      killChainPhases: [],
       markingDefinitions: [],
     };
     return (
@@ -324,16 +349,21 @@ class StixRelationCreation extends Component {
                 <div
                   className={classes.item}
                   style={{
-                    backgroundColor: itemColor(from.type, true),
+                    border: `2px solid ${itemColor(from.type)}`,
                     top: 10,
-                    left: 10,
+                    left: 0,
                   }}
                 >
-                  <div className={classes.itemHeader}>
+                  <div
+                    className={classes.itemHeader}
+                    style={{
+                      borderBottom: `1px solid ${itemColor(from.type)}`,
+                    }}
+                  >
                     <div className={classes.icon}>
                       <ItemIcon
                         type={from.type}
-                        color={itemColor(from.type, false)}
+                        color={itemColor(from.type)}
                         size="small"
                       />
                     </div>
@@ -351,16 +381,21 @@ class StixRelationCreation extends Component {
                 <div
                   className={classes.item}
                   style={{
-                    backgroundColor: itemColor(to.type, true),
+                    border: `2px solid ${itemColor(to.type)}`,
                     top: 10,
-                    right: 10,
+                    right: 0,
                   }}
                 >
-                  <div className={classes.itemHeader}>
+                  <div
+                    className={classes.itemHeader}
+                    style={{
+                      borderBottom: `1px solid ${itemColor(to.type)}`,
+                    }}
+                  >
                     <div className={classes.icon}>
                       <ItemIcon
                         type={to.type}
-                        color={itemColor(to.type, false)}
+                        color={itemColor(to.type)}
                         size="small"
                       />
                     </div>
@@ -437,6 +472,14 @@ class StixRelationCreation extends Component {
                 style={{ marginTop: 20 }}
               />
               <Field
+                  name="killChainPhases"
+                  component={Autocomplete}
+                  multiple={true}
+                  label={t('Kill chain phases')}
+                  options={this.state.killChainPhases}
+                  onInputChange={this.searchKillchainPhases.bind(this)}
+              />
+              <Field
                 name="markingDefinitions"
                 component={Autocomplete}
                 multiple={true}
@@ -475,6 +518,7 @@ class StixRelationCreation extends Component {
       nsd, t, classes, from, to,
     } = this.props;
     const { existingRelations } = this.state;
+
     return (
       <div>
         <div className={classes.header}>
@@ -497,16 +541,21 @@ class StixRelationCreation extends Component {
               <div
                 className={classes.item}
                 style={{
-                  backgroundColor: itemColor(from.type, true),
+                  border: `2px solid ${itemColor(from.type)}`,
                   top: 10,
-                  left: 10,
+                  left: 0,
                 }}
               >
-                <div className={classes.itemHeader}>
+                <div
+                  className={classes.itemHeader}
+                  style={{
+                    borderBottom: `1px solid ${itemColor(from.type)}`,
+                  }}
+                >
                   <div className={classes.icon}>
                     <ItemIcon
                       type={from.type}
-                      color={itemColor(from.type, false)}
+                      color={itemColor(from.type)}
                       size="small"
                     />
                   </div>
@@ -544,16 +593,21 @@ class StixRelationCreation extends Component {
               <div
                 className={classes.item}
                 style={{
-                  backgroundColor: itemColor(to.type, true),
+                  border: `2px solid ${itemColor(to.type)}`,
                   top: 10,
-                  right: 10,
+                  right: 0,
                 }}
               >
-                <div className={classes.itemHeader}>
+                <div
+                  className={classes.itemHeader}
+                  style={{
+                    borderBottom: `1px solid ${itemColor(to.type)}`,
+                  }}
+                >
                   <div className={classes.icon}>
                     <ItemIcon
                       type={to.type}
-                      color={itemColor(to.type, false)}
+                      color={itemColor(to.type)}
                       size="small"
                     />
                   </div>
@@ -575,10 +629,15 @@ class StixRelationCreation extends Component {
               style={{
                 backgroundColor: '#607d8b',
                 top: 10,
-                left: 10,
+                left: 0,
               }}
             >
-              <div className={classes.itemHeader}>
+              <div
+                className={classes.itemHeader}
+                style={{
+                  borderBottom: `1px solid ${itemColor(from.type)}`,
+                }}
+              >
                 <div className={classes.icon}>
                   <ItemIcon type={from.type} color="#263238" size="small" />
                 </div>
@@ -608,10 +667,15 @@ class StixRelationCreation extends Component {
               style={{
                 backgroundColor: '#607d8b',
                 top: 10,
-                right: 10,
+                right: 0,
               }}
             >
-              <div className={classes.itemHeader}>
+              <div
+                className={classes.itemHeader}
+                style={{
+                  borderBottom: `1px solid ${itemColor(to.type)}`,
+                }}
+              >
                 <div className={classes.icon}>
                   <ItemIcon type={to.type} color="#263238" size="small" />
                 </div>

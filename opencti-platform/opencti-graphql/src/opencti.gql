@@ -9,7 +9,7 @@ define
   timestamp sub attribute, datatype long;
 
   # OpenCTI properties
-  internal_id sub attribute, datatype string;
+  internal_id_key sub attribute, datatype string;
   created_at sub attribute, datatype date;
   created_at_day sub attribute, datatype string;
   created_at_month sub attribute, datatype string;
@@ -34,14 +34,11 @@ define
   workspace_data sub attribute, datatype string;
   workspace_type sub attribute, datatype string;
   object_status sub attribute, datatype long;
-  export_type sub attribute, datatype string;
-  export_mode sub attribute, datatype string;
-  raw_data sub attribute, datatype string;
   score sub attribute, datatype long;
   tag_type sub attribute, datatype string;
 
   # STIX common properties
-  stix_id sub attribute, datatype string;
+  stix_id_key sub attribute, datatype string;
   stix_label sub attribute, datatype string;
   entity_type sub attribute, datatype string;
   created sub attribute, datatype date;
@@ -61,6 +58,9 @@ define
   expiration_year sub attribute, datatype string;
   name sub attribute, datatype string;
   description sub attribute, datatype string;
+  connector_type sub attribute, datatype string;
+  connector_scope sub attribute, datatype string;
+  connector_state sub attribute, datatype string;
 
   # STIX SDO
   alias sub attribute, datatype string;
@@ -115,10 +115,6 @@ define
   # Migration
   status sub role;
   state sub role;
-
-  # Export
-  exported sub role;
-  export sub role;
 
   # OpenCTI roles
   author sub role;
@@ -192,6 +188,10 @@ define
   gather sub role;
   part_of sub role;
 
+  # drops
+  dropping sub role;
+  dropped sub role;
+
   # sighting
   sighting_of sub role;
   sighted_in sub role;
@@ -200,37 +200,31 @@ define
 
   # Login relationship
   authorize sub relation,
-    has internal_id,
+    key internal_id_key,
     relates authorization,
     relates client;
 
   # Migration relationships
   migrate sub relation,
-    has internal_id,
+    key internal_id_key,
     relates status,
     relates state;
 
-  # Export relationship
-  exports sub relation,
-    has internal_id,
-    relates export,
-    relates exported;
-
   # Group membership relationships
   membership sub relation,
-    has internal_id,
+    key internal_id_key,
     relates grouping,
     relates member;
 
   # Access relationships
   permission sub relation,
-    has internal_id,
+    key internal_id_key,
     has grant,
     relates allow,
     relates allowed;
 
   user_permission sub relation,
-    has internal_id,
+    key internal_id_key,
     has grant,
     relates allow,
     relates allowed;
@@ -238,7 +232,7 @@ define
   # OpenCTI embeded relationships
   relation_embedded sub relation,
     abstract,
-    has internal_id;
+    key internal_id_key;
 
   authored_by sub relation_embedded,
     relates author,
@@ -255,8 +249,7 @@ define
   # STIX embeded relationships
   stix_relation_embedded sub relation,
     abstract,
-    has internal_id,
-    has stix_id;
+    key internal_id_key;
 
   created_by_ref sub stix_relation_embedded,
     relates creator,
@@ -281,8 +274,7 @@ define
   # STIX SOO embeded relationships
    stix_relation_observable_embedded sub relation,
     abstract,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
     has created,
     has modified,
     has revoked,
@@ -317,8 +309,7 @@ define
   # STIX SOO embeded relationships
    stix_relation_observable_grouping sub relation,
     abstract,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
     has created,
     has modified,
     has revoked,
@@ -344,9 +335,10 @@ define
     relates observable_part_of;
 
   # STIX SRO relationships
+
   stix_sighting sub relation,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
+    key stix_id_key,
     has created,
     has modified,
     has revoked,
@@ -366,8 +358,8 @@ define
 
   stix_relation sub relation,
     abstract,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
+    key stix_id_key,
     has created,
     has modified,
     has revoked,
@@ -396,11 +388,12 @@ define
     has created_at_month,
     has created_at_year,
     has updated_at,
-    plays localized,
+    plays phase_belonging,
     plays so;
 
   # targets
   targets sub stix_relation,
+    plays localized,
     relates target,
     relates source;
 
@@ -458,22 +451,27 @@ define
     relates gather,
     relates part_of;
 
+  # drops
+  drops sub parentship,
+    relates dropping,
+    relates dropped;
+
   ## ENTITIES
   # Migration entities
   MigrationStatus sub entity,
-    has internal_id,
+    key internal_id_key,
     has lastRun,
     plays status;
 
   MigrationReference sub entity,
-    has internal_id,
+    key internal_id_key,
     has title,
     has timestamp,
     plays state;
 
   # OpenCTI entities
   Settings sub entity,
-    has internal_id,
+    key internal_id_key,
     has entity_type,
     has platform_title,
     has platform_email,
@@ -489,7 +487,7 @@ define
     has updated_at;
 
   Tag sub entity,
-    has internal_id,
+    key internal_id_key,
     has tag_type,
     key value,
     has color,
@@ -500,21 +498,17 @@ define
     has updated_at,
     plays tagging;
 
-  Export sub entity,
-    has internal_id,
-    has description,
-    has export_type,
-    has object_status,
-    has raw_data,
+  Connector sub entity,
+    key internal_id_key,
+    has name,
+    has connector_type,
+    has connector_scope,
+    has connector_state,
     has created_at,
-    has created_at_day,
-    has created_at_month,
-    has created_at_year,
-    has updated_at,
-    plays export;
+    has updated_at;
 
   Group sub entity,
-    has internal_id,
+    key internal_id_key,
     has entity_type,
     has name,
     has description,
@@ -527,7 +521,7 @@ define
     plays grouping;
 
   Workspace sub entity,
-    has internal_id,
+    key internal_id_key,
     has entity_type,
     has workspace_type,
     has name,
@@ -544,7 +538,7 @@ define
     plays knowledge_aggregation;
 
   Token sub entity,
-    has internal_id,
+    key internal_id_key,
     key uuid,
     has entity_type,
     has name,
@@ -561,8 +555,8 @@ define
 
   Stix-Domain sub entity,
     abstract,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
+    key stix_id_key,
     has stix_label,
     has entity_type,
     has created,
@@ -576,8 +570,7 @@ define
     has updated_at,
     plays relate_from,
     plays relate_to,
-    plays so,
-    plays exported;
+    plays so;
 
   Stix-Domain-Entity sub Stix-Domain,
     abstract,
@@ -673,7 +666,8 @@ define
   Sector sub Identity;
 
   Organization sub Identity,
-    has organization_class;
+    has organization_class,
+    plays characterize;
 
   Threat-Actor sub Identity,
     has stix_role,
@@ -700,7 +694,8 @@ define
     plays author,
     plays owner,
     plays member,
-    plays allowed;
+    plays allowed,
+    plays characterize;
 
   Incident sub Stix-Domain-Entity,
     has objective,
@@ -748,6 +743,8 @@ define
     plays problem,
     plays characterize,
     plays attribution,
+    plays dropping,
+    plays dropped,
     plays original;
 
   Report sub Stix-Domain-Entity,
@@ -767,16 +764,19 @@ define
     plays user,
     plays usage,
     plays problem,
+    plays dropping,
+    plays dropped,
     plays characterize;
 
   Vulnerability sub Stix-Domain-Entity,
     plays target,
-    plays problem;
+    plays problem,
+    plays characterize;
 
    Stix-Observable sub entity,
     abstract,
-    has internal_id,
-    has stix_id,
+    key internal_id_key,
+    key stix_id_key,
     has entity_type,
     has name,
     has description,
@@ -789,16 +789,18 @@ define
     plays so,
     plays soo,
     plays indicator,
-    plays exported,
+    plays part_of,
     plays observable_group,
     plays observable_part_of;
 
     Domain sub Stix-Observable;
 
     IPv4-Addr sub Stix-Observable,
+    plays localized,
     plays resolves_to;
 
     IPv6-Addr sub Stix-Observable,
+    plays localized,
     plays resolves_to;
 
     URL sub Stix-Observable;
@@ -833,7 +835,7 @@ define
 
     Stix-Observable-Data sub entity,
     abstract,
-    has internal_id,
+    key internal_id_key,
     has entity_type,
     has value,
     has created_at,

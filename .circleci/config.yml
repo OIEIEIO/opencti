@@ -70,7 +70,7 @@ jobs:
       - add_ssh_keys
       - run: ssh-keyscan -H opencti.io >> ~/.ssh/known_hosts
       - run: git config --global user.email "ci@opencti.io" && git config --global user.name "OpenCTI CircleCI"
-      - run: git remote add opencti ssh://git-OLOszi5F@opencti.io:/~/git-OLOszi5F.git && git push opencti master
+      - run: git remote add opencti ssh://git-OLOszi5F@opencti.io:/~/git-OLOszi5F.git && git push --force opencti master
       - run: mkdir release
       - run: cp -a ./opencti-platform/opencti-graphql release/opencti
       - run: cp -a ./opencti-worker/src release/opencti/worker
@@ -97,7 +97,10 @@ jobs:
       - run: git config --global user.email "ci@opencti.io" && git config --global user.name "OpenCTI CircleCI"
       - run:
           working_directory: ~/opencti/deploy
-          command: git clone ssh://opencti-fiqid45E@opencti.io:/~/opencti-fiqid45E.git . && git submodule update --remote
+          command: git clone ssh://opencti-fiqid45E@opencti.io:/~/opencti-fiqid45E.git .
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git submodule init && git submodule update --remote          
       - run:
           working_directory: ~/opencti/deploy
           command: git remote add ci ~/opencti && git pull --no-edit -s recursive -X theirs ci master
@@ -107,12 +110,6 @@ jobs:
       - run:
           working_directory: ~/opencti/deploy
           command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/dist/ ./opencti-platform/opencti-graphql/dist/
-      - run:
-          working_directory: ~/opencti/deploy
-          command: rsync -av ~/opencti/opencti-worker/src/ ./opencti-worker-import/          
-      - run:
-          working_directory: ~/opencti/deploy
-          command: rsync -av ~/opencti/opencti-worker/src/ ./opencti-worker-export/           
       - run:
           working_directory: ~/opencti/deploy
           command: rsync -av ./opencti-connectors/ ./opencti-connectors-enabled/
@@ -137,7 +134,10 @@ jobs:
       - run: git config --global user.email "ci@opencti.io" && git config --global user.name "OpenCTI CircleCI"
       - run:
           working_directory: ~/opencti/deploy
-          command: git clone ssh://opencti-b0gY5UHe@opencti.io:/~/opencti-b0gY5UHe.git . && git submodule update --remote
+          command: git clone ssh://opencti-b0gY5UHe@opencti.io:/~/opencti-b0gY5UHe.git .
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git submodule init && git submodule update --remote          
       - run:
           working_directory: ~/opencti/deploy
           command: git remote add ci ~/opencti && git pull --no-edit -s recursive -X theirs ci master          
@@ -146,13 +146,44 @@ jobs:
           command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/public/ ./opencti-platform/opencti-graphql/public/
       - run:
           working_directory: ~/opencti/deploy
-          command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/dist/ ./opencti-platform/opencti-graphql/dist/
+          command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/dist/ ./opencti-platform/opencti-graphql/dist/  
       - run:
           working_directory: ~/opencti/deploy
-          command: rsync -av ~/opencti/opencti-worker/src/ ./opencti-worker-import/          
+          command: rsync -av ./opencti-connectors/ ./opencti-connectors-enabled/                
       - run:
           working_directory: ~/opencti/deploy
-          command: rsync -av ~/opencti/opencti-worker/src/ ./opencti-worker-export/    
+          command: git add -A
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git diff-index --quiet HEAD || git commit -a -m "[CircleCI-Workflow] Deploy new version" && git push origin master
+
+  deploy_testing:
+    working_directory: ~/opencti
+    docker:
+      - image: circleci/node:11-stretch
+    steps:
+      - attach_workspace:
+          at: ~/
+      - add_ssh_keys
+      - run: ssh-keyscan -H opencti.io >> ~/.ssh/known_hosts    
+      - run: sudo apt-get update -qq && sudo apt install rsync
+      - run: mkdir -p deploy
+      - run: git config --global user.email "ci@opencti.io" && git config --global user.name "OpenCTI CircleCI"
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git clone ssh://opencti-M234WEu2@opencti.io:/~/opencti-M234WEu2.git .
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git submodule init && git submodule update --remote          
+      - run:
+          working_directory: ~/opencti/deploy
+          command: git remote add ci ~/opencti && git pull --no-edit -s recursive -X theirs ci master          
+      - run:
+          working_directory: ~/opencti/deploy
+          command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/public/ ./opencti-platform/opencti-graphql/public/
+      - run:
+          working_directory: ~/opencti/deploy
+          command: rsync -av --delete ~/opencti/opencti-platform/opencti-graphql/dist/ ./opencti-platform/opencti-graphql/dist/  
       - run:
           working_directory: ~/opencti/deploy
           command: rsync -av ./opencti-connectors/ ./opencti-connectors-enabled/                
@@ -263,6 +294,14 @@ workflows:
             branches:
               only:
                 - master
+      - deploy_testing:
+          requires:
+            - build
+            - test
+          filters:
+            branches:
+              only:
+                - master                
       - deploy_documentation:
           filters:
             branches:

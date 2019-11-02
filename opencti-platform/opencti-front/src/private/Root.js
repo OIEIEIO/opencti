@@ -11,6 +11,7 @@ import TopBar from './components/nav/TopBar';
 import LeftBar from './components/nav/LeftBar';
 import Dashboard from './components/Dashboard';
 import Search from './components/Search';
+import RootImport from './components/import/Root';
 import RootThreats from './components/threats/Root';
 import RootTechniques from './components/techniques/Root';
 import RootEntities from './components/entities/Root';
@@ -22,13 +23,13 @@ import RootWorkspace from './components/workspaces/Root';
 import Reports from './components/reports/Reports';
 import RootReport from './components/reports/Root';
 import ExternalReferences from './components/common/external_references/ExternalReferences';
-import ConnectorsStatus from './components/connectors/ConnectorsStatus';
+import Connectors from './components/connectors/Connectors';
 import Profile from './components/Profile';
 import Message from '../components/Message';
 import { NoMatch, BoundaryRoute } from './components/Error';
 import Loader from './Loader';
 
-const styles = theme => ({
+const styles = (theme) => ({
   root: {
     height: '100%',
   },
@@ -91,7 +92,7 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/search/:keyword"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <Search {...routeProps} me={props.me} />
                           )}
                         />
@@ -117,7 +118,7 @@ class Root extends Component {
                         />
                         <BoundaryRoute
                           path="/dashboard/observables/all/:observableId"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <RootStixObservable {...routeProps} me={props.me} />
                           )}
                         />
@@ -136,13 +137,13 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/reports/:reportClass"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <Reports displayCreate={true} {...routeProps} />
                           )}
                         />
                         <BoundaryRoute
                           path="/dashboard/reports/all/:reportId"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <RootReport {...routeProps} me={props.me} />
                           )}
                         />
@@ -153,7 +154,7 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/explore"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <Workspaces
                               {...routeProps}
                               workspaceType="explore"
@@ -163,7 +164,7 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/explore/:workspaceId"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <RootWorkspace
                               {...routeProps}
                               workspaceType="explore"
@@ -178,7 +179,7 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/investigate/:workspaceId"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <RootWorkspace
                               {...routeProps}
                               workspaceType="investigate"
@@ -188,16 +189,7 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/connectors"
-                          render={() => (
-                            <Redirect to="/dashboard/connectors/import" />
-                          )}
-                        />
-                        <BoundaryRoute
-                          exact
-                          path="/dashboard/connectors/import"
-                          render={routeProps => (
-                            <ConnectorsStatus {...routeProps} type="importer" />
-                          )}
+                          render={(routeProps) => <Connectors {...routeProps} />}
                         />
                         <BoundaryRoute
                           path="/dashboard/settings"
@@ -206,9 +198,14 @@ class Root extends Component {
                         <BoundaryRoute
                           exact
                           path="/dashboard/profile"
-                          render={routeProps => (
+                          render={(routeProps) => (
                             <Profile {...routeProps} me={props.me} />
                           )}
+                        />
+                        <BoundaryRoute
+                          path="/dashboard/import"
+                          component={RootImport}
+                          me={props.me}
                         />
                         <Route component={NoMatch} />
                       </Switch>
