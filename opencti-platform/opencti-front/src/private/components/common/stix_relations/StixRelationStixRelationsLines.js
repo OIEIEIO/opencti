@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import * as PropTypes from 'prop-types';
 import { createPaginationContainer } from 'react-relay';
-import { ConnectionHandler } from 'relay-runtime';
 import graphql from 'babel-plugin-relay/macro';
 import { withStyles } from '@material-ui/core/styles';
 import Paper from '@material-ui/core/Paper';
@@ -11,18 +10,15 @@ import ListItem from '@material-ui/core/ListItem';
 import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemText from '@material-ui/core/ListItemText';
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
-import IconButton from '@material-ui/core/IconButton';
-import Avatar from '@material-ui/core/Avatar';
-import { LinkOff } from '@material-ui/icons';
 import { compose } from 'ramda';
 import { Link } from 'react-router-dom';
 import inject18n from '../../../../components/i18n';
-import { truncate } from '../../../../utils/String';
-import { commitMutation } from '../../../../relay/environment';
-import AddCoursesOfAction from './AddCoursesOfAction';
-import { courseOfActionMutationRelationDelete } from './AddCoursesOfActionLines';
+import ItemIcon from '../../../../components/ItemIcon';
+import StixRelationCreationFromEntity from './StixRelationCreationFromEntity';
+import StixRelationPopover from './StixRelationPopover';
+import { resolveLink } from '../../../../utils/Entity';
 
-const styles = theme => ({
+const styles = (theme) => ({
   paper: {
     minHeight: '100%',
     margin: '-4px 0 0 0',
@@ -48,27 +44,7 @@ const styles = theme => ({
   },
 });
 
-class EntityCoursesOfActionLinesContainer extends Component {
-  removeCourseOfAction(courseOfActionEdge) {
-    commitMutation({
-      mutation: courseOfActionMutationRelationDelete,
-      variables: {
-        id: courseOfActionEdge.node.id,
-        relationId: courseOfActionEdge.relation.id,
-      },
-      updater: (store) => {
-        const container = store.getRoot();
-        const userProxy = store.get(container.getDataID());
-        const conn = ConnectionHandler.getConnection(
-          userProxy,
-          'Pagination_coursesOfAction',
-          this.props.paginationOptions,
-        );
-        ConnectionHandler.deleteNode(conn, courseOfActionEdge.node.id);
-      },
-    });
-  }
-
+class StixRelationStixRelationsLinesContainer extends Component {
   render() {
     const {
       t, classes, entityId, data, paginationOptions,
@@ -76,46 +52,53 @@ class EntityCoursesOfActionLinesContainer extends Component {
     return (
       <div style={{ height: '100%' }}>
         <Typography variant="h4" gutterBottom={true} style={{ float: 'left' }}>
-          {t('Courses of action')}
+          {t('Linked entities')}
         </Typography>
-        <AddCoursesOfAction
+        <StixRelationCreationFromEntity
           entityId={entityId}
-          entityCoursesOfAction={data.coursesOfAction.edges}
-          entityPaginationOptions={paginationOptions}
+          isFromRelation={true}
+          variant="inLine"
+          paginationOptions={paginationOptions}
         />
         <div className="clearfix" />
         <Paper classes={{ root: classes.paper }} elevation={2}>
           <List classes={{ root: classes.list }}>
-            {data.coursesOfAction.edges.map((courseOfActionEdge) => {
-              const courseOfAction = courseOfActionEdge.node;
+            {data.stixRelations.edges.map((stixRelationEdge) => {
+              const stixRelation = stixRelationEdge.node;
+              const link = `${resolveLink(
+                stixRelation.to.parent_types.includes('Stix-Observable')
+                  ? 'observable'
+                  : stixRelation.to.entity_type,
+              )}/${stixRelation.to.id}`;
               return (
                 <ListItem
-                  key={courseOfAction.id}
+                  key={stixRelation.id}
                   dense={true}
                   divider={true}
                   button={true}
                   component={Link}
-                  to={`/dashboard/techniques/courses_of_action/${courseOfAction.id}`}
+                  to={link}
                 >
                   <ListItemIcon>
-                    <Avatar classes={{ root: classes.avatar }}>
-                      {courseOfAction.name.substring(0, 1)}
-                    </Avatar>
+                    <ItemIcon type={stixRelation.to.entity_type} />
                   </ListItemIcon>
                   <ListItemText
-                    primary={courseOfAction.name}
-                    secondary={truncate(courseOfAction.description, 60)}
+                    primary={
+                      stixRelation.to.parent_types.includes('Stix-Observable')
+                        ? stixRelation.to.observable_value
+                        : stixRelation.to.name
+                    }
+                    secondary={
+                      stixRelation.to.parent_types.includes('Stix-Observable')
+                        ? t(`observable_${stixRelation.to.entity_type}`)
+                        : t(`entity_${stixRelation.to.entity_type}`)
+                    }
                   />
                   <ListItemSecondaryAction>
-                    <IconButton
-                      aria-label="Remove"
-                      onClick={this.removeCourseOfAction.bind(
-                        this,
-                        courseOfActionEdge,
-                      )}
-                    >
-                      <LinkOff />
-                    </IconButton>
+                    <StixRelationPopover
+                      stixRelationId={stixRelation.id}
+                      paginationOptions={paginationOptions}
+                    />
                   </ListItemSecondaryAction>
                 </ListItem>
               );
@@ -127,7 +110,7 @@ class EntityCoursesOfActionLinesContainer extends Component {
   }
 }
 
-EntityCoursesOfActionLinesContainer.propTypes = {
+StixRelationStixRelationsLinesContainer.propTypes = {
   entityId: PropTypes.string,
   paginationOptions: PropTypes.object,
   data: PropTypes.object,
@@ -137,17 +120,19 @@ EntityCoursesOfActionLinesContainer.propTypes = {
   fld: PropTypes.func,
 };
 
-export const entityCoursesOfActionLinesQuery = graphql`
-  query EntityCoursesOfActionLinesQuery(
-    $objectId: String!
+export const stixRelationStixRelationsLinesQuery = graphql`
+  query StixRelationStixRelationsLinesQuery(
+    $fromId: String
+    $relationType: String
     $count: Int!
     $cursor: ID
-    $orderBy: CoursesOfActionOrdering
+    $orderBy: StixRelationsOrdering
     $orderMode: OrderingMode
   ) {
-    ...EntityCoursesOfActionLines_data
+    ...StixRelationStixRelationsLines_data
       @arguments(
-        objectId: $objectId
+        fromId: $fromId
+        relationType: $relationType
         count: $count
         cursor: $cursor
         orderBy: $orderBy
@@ -156,33 +141,44 @@ export const entityCoursesOfActionLinesQuery = graphql`
   }
 `;
 
-const EntityCoursesOfActionLines = createPaginationContainer(
-  EntityCoursesOfActionLinesContainer,
+const StixRelationStixRelationsLines = createPaginationContainer(
+  StixRelationStixRelationsLinesContainer,
   {
     data: graphql`
-      fragment EntityCoursesOfActionLines_data on Query
+      fragment StixRelationStixRelationsLines_data on Query
         @argumentDefinitions(
-          objectId: { type: "String!" }
+          fromId: { type: "String" }
+          relationType: { type: "String" }
           count: { type: "Int", defaultValue: 25 }
           cursor: { type: "ID" }
-          orderBy: { type: "CoursesOfActionOrdering", defaultValue: "name" }
+          orderBy: { type: "StixRelationsOrdering", defaultValue: "first_seen" }
           orderMode: { type: "OrderingMode", defaultValue: "asc" }
         ) {
-        coursesOfAction(
-          objectId: $objectId
+        stixRelations(
+          fromId: $fromId
+          relationType: $relationType
           first: $count
           after: $cursor
           orderBy: $orderBy
           orderMode: $orderMode
-        ) @connection(key: "Pagination_coursesOfAction") {
+        ) @connection(key: "Pagination_stixRelations") {
           edges {
             node {
               id
-              name
-              description
-            }
-            relation {
-              id
+              to {
+                ... on StixDomainEntity {
+                  id
+                  name
+                  entity_type
+                  parent_types
+                }
+                ... on StixObservable {
+                  id
+                  entity_type
+                  parent_types
+                  observable_value
+                }
+              }
             }
           }
           pageInfo {
@@ -197,7 +193,7 @@ const EntityCoursesOfActionLines = createPaginationContainer(
   {
     direction: 'forward',
     getConnectionFromProps(props) {
-      return props.data && props.data.coursesOfAction;
+      return props.data && props.data.stixRelations;
     },
     getFragmentVariables(prevVars, totalCount) {
       return {
@@ -207,18 +203,19 @@ const EntityCoursesOfActionLines = createPaginationContainer(
     },
     getVariables(props, { count, cursor }, fragmentVariables) {
       return {
-        objectId: fragmentVariables.objectId,
+        fromId: fragmentVariables.fromId,
+        relationType: fragmentVariables.relationType,
         count,
         cursor,
         orderBy: fragmentVariables.orderBy,
         orderMode: fragmentVariables.orderMode,
       };
     },
-    query: entityCoursesOfActionLinesQuery,
+    query: stixRelationStixRelationsLinesQuery,
   },
 );
 
 export default compose(
   inject18n,
   withStyles(styles),
-)(EntityCoursesOfActionLines);
+)(StixRelationStixRelationsLines);

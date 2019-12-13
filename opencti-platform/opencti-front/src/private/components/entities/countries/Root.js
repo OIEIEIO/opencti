@@ -11,6 +11,10 @@ import Country from './Country';
 import CountryReports from './CountryReports';
 import CountryKnowledge from './CountryKnowledge';
 import CountryObservables from './CountryObservables';
+import StixDomainEntityHeader from '../../common/stix_domain_entities/StixDomainEntityHeader';
+import FileManager from '../../common/files/FileManager';
+import CountryPopover from './CountryPopover';
+import Loader from '../../../../components/Loader';
 
 const subscription = graphql`
   subscription RootCountriesSubscription($id: ID!) {
@@ -19,6 +23,8 @@ const subscription = graphql`
         ...Country_country
         ...CountryEditionContainer_country
       }
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
     }
   }
 `;
@@ -26,11 +32,19 @@ const subscription = graphql`
 const countryQuery = graphql`
   query RootCountryQuery($id: String!) {
     country(id: $id) {
+      id
+      name
+      alias
       ...Country_country
       ...CountryOverview_country
       ...CountryReports_country
       ...CountryKnowledge_country
       ...CountryObservables_country
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
+    }
+    connectorsForExport {
+      ...FileManager_connectorsExport
     }
   }
 `;
@@ -111,10 +125,28 @@ class RootCountry extends Component {
                       />
                     )}
                   />
+                  <Route
+                    exact
+                    path="/dashboard/entities/countries/:countryId/files"
+                    render={(routeProps) => (
+                      <React.Fragment>
+                        <StixDomainEntityHeader
+                          stixDomainEntity={props.country}
+                          PopoverComponent={<CountryPopover />}
+                        />
+                        <FileManager
+                          {...routeProps}
+                          id={countryId}
+                          connectorsExport={props.connectorsForExport}
+                          entity={props.country}
+                        />
+                      </React.Fragment>
+                    )}
+                  />
                 </div>
               );
             }
-            return <div> &nbsp; </div>;
+            return <Loader />;
           }}
         />
       </div>

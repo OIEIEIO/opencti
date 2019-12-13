@@ -15,11 +15,15 @@ const interval$ = interval(TEN_SECONDS);
 
 const nbOfRowsToLoad = 25;
 
-class StixObservableEntitysLines extends Component {
+class StixObservableEntitiesLines extends Component {
   componentDidMount() {
     this.subscription = interval$.subscribe(() => {
       this.props.relay.refetchConnection(25);
     });
+  }
+
+  componentWillUnmount() {
+    this.subscription.unsubscribe();
   }
 
   render() {
@@ -30,6 +34,7 @@ class StixObservableEntitysLines extends Component {
       entityLink,
       paginationOptions,
       displayRelation,
+      entityId,
     } = this.props;
     return (
       <ListLinesContent
@@ -44,7 +49,10 @@ class StixObservableEntitysLines extends Component {
           this.props.data,
         )}
         LineComponent={
-          <StixObservableEntityLine displayRelation={displayRelation} />
+          <StixObservableEntityLine
+            displayRelation={displayRelation}
+            entityId={entityId}
+          />
         }
         DummyLineComponent={
           <StixObservableEntityLineDummy displayRelation={displayRelation} />
@@ -58,10 +66,11 @@ class StixObservableEntitysLines extends Component {
   }
 }
 
-StixObservableEntitysLines.propTypes = {
+StixObservableEntitiesLines.propTypes = {
   classes: PropTypes.object,
   paginationOptions: PropTypes.object,
   dataColumns: PropTypes.object.isRequired,
+  entityId: PropTypes.string,
   data: PropTypes.object,
   relay: PropTypes.object,
   stixRelations: PropTypes.object,
@@ -116,7 +125,7 @@ export const stixObservableEntitiesLinesQuery = graphql`
 `;
 
 export default createPaginationContainer(
-  StixObservableEntitysLines,
+  StixObservableEntitiesLines,
   {
     data: graphql`
       fragment StixObservableEntitiesLines_data on Query

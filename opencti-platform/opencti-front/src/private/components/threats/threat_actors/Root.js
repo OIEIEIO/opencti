@@ -11,7 +11,7 @@ import ThreatActor from './ThreatActor';
 import ThreatActorReports from './ThreatActorReports';
 import ThreatActorKnowledge from './ThreatActorKnowledge';
 import ThreatActorObservables from './ThreatActorObservables';
-import Loader from '../../../Loader';
+import Loader from '../../../../components/Loader';
 import FileManager from '../../common/files/FileManager';
 import StixDomainEntityHeader from '../../common/stix_domain_entities/StixDomainEntityHeader';
 import ThreatActorPopover from './ThreatActorPopover';
@@ -45,11 +45,7 @@ const threatActorQuery = graphql`
       ...FileExportViewer_entity
     }
     connectorsForExport {
-        id
-        name
-        active
-        connector_scope
-        updated_at
+        ...FileManager_connectorsExport
     }
   }
 `;
@@ -136,16 +132,22 @@ class RootThreatActor extends Component {
                       />
                     )}
                   />
-                  <Route exact path="/dashboard/threats/threat_actors/:threatActorId/files"
+                  <Route
+                    exact
+                    path="/dashboard/threats/threat_actors/:threatActorId/files"
                     render={(routeProps) => (
-                       <React.Fragment>
-                           <StixDomainEntityHeader
-                               stixDomainEntity={props.threatActor}
-                               PopoverComponent={<ThreatActorPopover />}/>
-                           <FileManager {...routeProps} id={threatActorId}
-                                        connectorsExport={props.connectorsForExport}
-                                        entity={props.threatActor}/>
-                       </React.Fragment>
+                      <React.Fragment>
+                        <StixDomainEntityHeader
+                          stixDomainEntity={props.threatActor}
+                          PopoverComponent={<ThreatActorPopover />}
+                        />
+                        <FileManager
+                          {...routeProps}
+                          id={threatActorId}
+                          connectorsExport={props.connectorsForExport}
+                          entity={props.threatActor}
+                        />
+                      </React.Fragment>
                     )}
                   />
                 </div>

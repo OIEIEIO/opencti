@@ -5,6 +5,7 @@ import { createFragmentContainer } from 'react-relay';
 import graphql from 'babel-plugin-relay/macro';
 import { withStyles } from '@material-ui/core/styles';
 import Paper from '@material-ui/core/Paper';
+import Chip from '@material-ui/core/Chip';
 import List from '@material-ui/core/List';
 import ListItem from '@material-ui/core/ListItem';
 import ListItemIcon from '@material-ui/core/ListItemIcon';
@@ -21,10 +22,6 @@ const styles = () => ({
     padding: '15px',
     borderRadius: 6,
   },
-  item: {
-    paddingLeft: 10,
-    height: 50,
-  },
 });
 
 class AttackPatternDetailsComponent extends Component {
@@ -36,6 +33,15 @@ class AttackPatternDetailsComponent extends Component {
           {t('Details')}
         </Typography>
         <Paper classes={{ root: classes.paper }} elevation={2}>
+          <Typography variant="h3" gutterBottom={true}>
+            {t('External ID')}
+          </Typography>
+          <Chip
+            size="small"
+            label={attackPattern.external_id}
+            color="primary"
+            style={{ marginBottom: 20 }}
+          />
           <StixDomainEntityTags
             tags={attackPattern.tags}
             id={attackPattern.id}
@@ -54,11 +60,9 @@ class AttackPatternDetailsComponent extends Component {
                 <ListItem
                   key={killChainPhase.phase_name}
                   dense={true}
-                  button={true}
                   divider={true}
-                  classes={{ root: classes.item }}
                 >
-                  <ListItemIcon classes={{ root: classes.itemIcon }}>
+                  <ListItemIcon>
                     <Launch />
                   </ListItemIcon>
                   <ListItemText primary={killChainPhase.phase_name} />
@@ -75,13 +79,8 @@ class AttackPatternDetailsComponent extends Component {
           </Typography>
           <List>
             {propOr([], 'platform', attackPattern).map((platform) => (
-              <ListItem
-                key={platform}
-                dense={true}
-                divider={true}
-                classes={{ root: classes.item }}
-              >
-                <ListItemIcon classes={{ root: classes.itemIcon }}>
+              <ListItem key={platform} dense={true} divider={true}>
+                <ListItemIcon>
                   <SettingsApplications />
                 </ListItemIcon>
                 <ListItemText primary={platform} />
@@ -98,13 +97,8 @@ class AttackPatternDetailsComponent extends Component {
           <List>
             {propOr([], 'required_permission', attackPattern).map(
               (permission) => (
-                <ListItem
-                  key={permission}
-                  dense={true}
-                  divider={true}
-                  classes={{ root: classes.item }}
-                >
-                  <ListItemIcon classes={{ root: classes.itemIcon }}>
+                <ListItem key={permission} dense={true} divider={true}>
+                  <ListItemIcon>
                     <PermIdentity />
                   </ListItemIcon>
                   <ListItemText primary={permission} />
@@ -130,6 +124,8 @@ const AttackPatternDetails = createFragmentContainer(
   {
     attackPattern: graphql`
       fragment AttackPatternDetails_attackPattern on AttackPattern {
+        id
+        external_id
         platform
         required_permission
         tags {
@@ -160,7 +156,4 @@ const AttackPatternDetails = createFragmentContainer(
   },
 );
 
-export default compose(
-  inject18n,
-  withStyles(styles),
-)(AttackPatternDetails);
+export default compose(inject18n, withStyles(styles))(AttackPatternDetails);

@@ -10,12 +10,6 @@ export const OPENCTI_WEB_TOKEN = 'Default';
 export const OPENCTI_ISSUER = 'OpenCTI';
 export const OPENCTI_DEFAULT_DURATION = 'P99Y';
 
-export const RABBITMQ_EXCHANGE_NAME = 'amqp.opencti';
-export const RABBITMQ_IMPORT_ROUTING_KEY = 'import.platform';
-export const RABBITMQ_EXPORT_ROUTING_KEY = 'export.platform';
-
-export const KEY_IMPORT = 'import-';
-
 export const BUS_TOPICS = {
   Settings: {
     EDIT_TOPIC: 'SETTINGS_EDIT_TOPIC',
@@ -28,6 +22,10 @@ export const BUS_TOPICS = {
   Connector: {
     EDIT_TOPIC: 'CONNECTOR_EDIT_TOPIC'
   },
+  StixEntity: {
+    EDIT_TOPIC: 'STIX_ENTITY_EDIT_TOPIC',
+    ADDED_TOPIC: 'STIX_ENTITY_ADDED_TOPIC'
+  },
   StixDomainEntity: {
     EDIT_TOPIC: 'STIX_DOMAIN_ENTITY_EDIT_TOPIC',
     ADDED_TOPIC: 'STIX_DOMAIN_ENTITY_ADDED_TOPIC'
@@ -35,6 +33,10 @@ export const BUS_TOPICS = {
   StixRelation: {
     EDIT_TOPIC: 'STIX_RELATION_EDIT_TOPIC',
     ADDED_TOPIC: 'STIX_RELATION_ADDED_TOPIC'
+  },
+  StixObservableRelation: {
+    EDIT_TOPIC: 'STIX_OBSERVABLE_RELATION_EDIT_TOPIC',
+    ADDED_TOPIC: 'STIX_OBSERVABLE_RELATION_ADDED_TOPIC'
   },
   StixObservable: {
     EDIT_TOPIC: 'STIX_OBSERVABLE_EDIT_TOPIC',

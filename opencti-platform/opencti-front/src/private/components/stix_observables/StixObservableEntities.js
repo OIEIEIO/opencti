@@ -41,6 +41,7 @@ class StixObservableEntities extends Component {
   }
 
   renderLines(paginationOptions) {
+    const { entityId } = this.props;
     const { sortBy, orderAsc } = this.state;
     const dataColumns = {
       entity_type: {
@@ -93,6 +94,7 @@ class StixObservableEntities extends Component {
               paginationOptions={paginationOptions}
               dataColumns={dataColumns}
               initialLoading={props === null}
+              entityId={entityId}
             />
           )}
         />
@@ -117,14 +119,13 @@ class StixObservableEntities extends Component {
     return (
       <div style={{ marginTop: 40 }}>
         <Typography variant="h4" gutterBottom={true} style={{ float: 'left' }}>
-          {t('Indicators relations to threats')}
+          {t('Relations to threats')}
         </Typography>
         <StixRelationCreationFromEntity
           paginationOptions={paginationOptions}
           entityId={entityId}
           variant="inLine"
           isFrom={true}
-          currentType="indicates"
           targetEntityTypes={[
             'Threat-Actor',
             'Intrusion-Set',

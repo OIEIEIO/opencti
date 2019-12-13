@@ -14,6 +14,7 @@ import { Description } from '@material-ui/icons';
 import inject18n from '../../../components/i18n';
 import ItemMarking from '../../../components/ItemMarking';
 import { QueryRenderer } from '../../../relay/environment';
+import Loader from '../../../components/Loader';
 
 const styles = (theme) => ({
   paper: {
@@ -54,18 +55,16 @@ const inlineStyles = {
 
 const entityLastReportsQuery = graphql`
   query EntityLastReportsQuery(
-    $objectId: String
-    $authorId: String
     $first: Int
     $orderBy: ReportsOrdering
     $orderMode: OrderingMode
+    $filters: [ReportsFiltering]
   ) {
     reports(
-      objectId: $objectId
-      authorId: $authorId
       first: $first
       orderBy: $orderBy
       orderMode: $orderMode
+      filters: $filters
     ) {
       edges {
         node {
@@ -91,6 +90,9 @@ class EntityLastReports extends Component {
     const {
       t, nsd, classes, entityId, authorId,
     } = this.props;
+    const filters = [];
+    if (authorId) filters.push({ key: 'createdBy', values: [authorId] });
+    if (entityId) filters.push({ key: 'knowledgeContains', values: [entityId] });
     return (
       <div style={{ height: '100%' }}>
         <Typography variant="h4" gutterBottom={true}>
@@ -102,11 +104,10 @@ class EntityLastReports extends Component {
           <QueryRenderer
             query={entityLastReportsQuery}
             variables={{
-              objectId: authorId ? null : entityId,
-              authorId: authorId || null,
               first: 8,
               orderBy: 'published',
               orderMode: 'desc',
+              filters,
             }}
             render={({ props }) => {
               if (props && props.reports) {
@@ -154,7 +155,7 @@ class EntityLastReports extends Component {
                   </List>
                 );
               }
-              return <div> &nbsp; </div>;
+              return <Loader variant="inElement" />;
             }}
           />
         </Paper>
@@ -171,7 +172,4 @@ EntityLastReports.propTypes = {
   nsd: PropTypes.func,
 };
 
-export default compose(
-  inject18n,
-  withStyles(styles),
-)(EntityLastReports);
+export default compose(inject18n, withStyles(styles))(EntityLastReports);

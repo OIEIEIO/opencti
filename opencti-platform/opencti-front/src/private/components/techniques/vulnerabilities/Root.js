@@ -10,6 +10,10 @@ import TopBar from '../../nav/TopBar';
 import Vulnerability from './Vulnerability';
 import VulnerabilityReports from './VulnerabilityReports';
 import VulnerabilityKnowledge from './VulnerabilityKnowledge';
+import StixDomainEntityHeader from '../../common/stix_domain_entities/StixDomainEntityHeader';
+import FileManager from '../../common/files/FileManager';
+import VulnerabilityPopover from './VulnerabilityPopover';
+import Loader from '../../../../components/Loader';
 
 const subscription = graphql`
   subscription RootVulnerabilitySubscription($id: ID!) {
@@ -18,6 +22,8 @@ const subscription = graphql`
         ...Vulnerability_vulnerability
         ...VulnerabilityEditionContainer_vulnerability
       }
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
     }
   }
 `;
@@ -25,10 +31,18 @@ const subscription = graphql`
 const vulnerabilityQuery = graphql`
   query RootVulnerabilityQuery($id: String!) {
     vulnerability(id: $id) {
+      id
+      name
+      alias
       ...Vulnerability_vulnerability
       ...VulnerabilityOverview_vulnerability
       ...VulnerabilityReports_vulnerability
       ...VulnerabilityKnowledge_vulnerability
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
+    }
+    connectorsForExport {
+      ...FileManager_connectorsExport
     }
   }
 `;
@@ -71,7 +85,7 @@ class RootVulnerability extends Component {
                   <Route
                     exact
                     path="/dashboard/techniques/vulnerabilities/:vulnerabilityId"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <Vulnerability
                         {...routeProps}
                         vulnerability={props.vulnerability}
@@ -81,7 +95,7 @@ class RootVulnerability extends Component {
                   <Route
                     exact
                     path="/dashboard/techniques/vulnerabilities/:vulnerabilityId/reports"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <VulnerabilityReports
                         {...routeProps}
                         vulnerability={props.vulnerability}
@@ -99,17 +113,35 @@ class RootVulnerability extends Component {
                   />
                   <Route
                     path="/dashboard/techniques/vulnerabilities/:vulnerabilityId/knowledge"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <VulnerabilityKnowledge
                         {...routeProps}
                         vulnerability={props.vulnerability}
                       />
                     )}
                   />
+                  <Route
+                    exact
+                    path="/dashboard/techniques/vulnerabilities/:vulnerabilityId/files"
+                    render={(routeProps) => (
+                      <React.Fragment>
+                        <StixDomainEntityHeader
+                          stixDomainEntity={props.vulnerability}
+                          PopoverComponent={<VulnerabilityPopover />}
+                        />
+                        <FileManager
+                          {...routeProps}
+                          id={vulnerabilityId}
+                          connectorsExport={props.connectorsForExport}
+                          entity={props.vulnerability}
+                        />
+                      </React.Fragment>
+                    )}
+                  />
                 </div>
               );
             }
-            return <div> &nbsp; </div>;
+            return <Loader />;
           }}
         />
       </div>

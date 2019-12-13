@@ -2,69 +2,47 @@ import { withFilter } from 'graphql-subscriptions';
 import { BUS_TOPICS } from '../config/conf';
 import {
   addStixRelation,
-  stixRelationDelete,
   findAll,
-  findByStixId,
-  findById,
-  findByIdInferred,
   findAllWithInferences,
-  stixRelationsTimeSeries,
-  stixRelationsTimeSeriesWithInferences,
+  findById,
+  search,
+  stixRelationAddRelation,
+  stixRelationCleanContext,
+  stixRelationDelete,
+  stixRelationDeleteRelation,
+  stixRelationEditContext,
+  stixRelationEditField,
   stixRelationsDistribution,
   stixRelationsDistributionWithInferences,
   stixRelationsNumber,
-  search,
-  stixRelationEditContext,
-  stixRelationCleanContext,
-  stixRelationEditField,
-  stixRelationAddRelation,
-  stixRelationDeleteRelation
+  stixRelationsTimeSeries,
+  stixRelationsTimeSeriesWithInferences
 } from '../domain/stixRelation';
 import { pubsub } from '../database/redis';
 import withCancel from '../schema/subscriptionWrapper';
-import { getByGraknId } from '../database/grakn';
-import { killChainPhases } from '../domain/stixDomainEntity';
+import { killChainPhases } from '../domain/stixEntity';
+import { loadByGraknId } from '../database/grakn';
 
 const stixRelationResolvers = {
   Query: {
-    stixRelation: (_, { id }) => {
-      if (id.length !== 36) {
-        return findByIdInferred(id);
-      }
-      return findById(id);
-    },
+    stixRelation: (_, { id }) => findById(id),
     stixRelations: (_, args) => {
       if (args.search && args.search.length > 0) {
         return search(args);
       }
-      if (args.stix_id_key && args.stix_id_key.length > 0) {
-        return findByStixId(args);
-      }
-      if (
-        args.resolveInferences &&
-        args.resolveRelationRole &&
-        args.resolveRelationType
-      ) {
+      if (args.resolveInferences && args.resolveRelationRole && args.resolveRelationType) {
         return findAllWithInferences(args);
       }
       return findAll(args);
     },
     stixRelationsTimeSeries: (_, args) => {
-      if (
-        args.resolveInferences &&
-        args.resolveRelationRole &&
-        args.resolveRelationType
-      ) {
+      if (args.resolveInferences && args.resolveRelationRole && args.resolveRelationType) {
         return stixRelationsTimeSeriesWithInferences(args);
       }
       return stixRelationsTimeSeries(args);
     },
     stixRelationsDistribution: (_, args) => {
-      if (
-        args.resolveInferences &&
-        args.resolveRelationRole &&
-        args.resolveRelationType
-      ) {
+      if (args.resolveInferences && args.resolveRelationRole && args.resolveRelationType) {
         return stixRelationsDistributionWithInferences(args);
       }
       return stixRelationsDistribution(args);
@@ -72,9 +50,13 @@ const stixRelationResolvers = {
     stixRelationsNumber: (_, args) => stixRelationsNumber(args)
   },
   StixRelation: {
-    killChainPhases: (rel, args) => killChainPhases(rel.id, args),
-    from: rel => rel.from || getByGraknId(rel.fromId),
-    to: rel => rel.to || getByGraknId(rel.toId)
+    killChainPhases: rel => killChainPhases(rel.id),
+    from: rel => loadByGraknId(rel.fromId),
+    to: rel => loadByGraknId(rel.toId)
+  },
+  RelationEmbedded: {
+    from: rel => loadByGraknId(rel.fromId),
+    to: rel => loadByGraknId(rel.toId)
   },
   Mutation: {
     stixRelationEdit: (_, { id }, { user }) => ({
@@ -83,10 +65,9 @@ const stixRelationResolvers = {
       contextPatch: ({ input }) => stixRelationEditContext(user, id, input),
       contextClean: () => stixRelationCleanContext(user, id),
       relationAdd: ({ input }) => stixRelationAddRelation(user, id, input),
-      relationDelete: ({ relationId }) =>
-        stixRelationDeleteRelation(user, id, relationId)
+      relationDelete: ({ relationId }) => stixRelationDeleteRelation(user, id, relationId)
     }),
-    stixRelationAdd: (_, { input }, { user }) => addStixRelation(user, input)
+    stixRelationAdd: (_, { input, reversedReturn }, { user }) => addStixRelation(user, input, reversedReturn)
   },
   Subscription: {
     stixRelation: {

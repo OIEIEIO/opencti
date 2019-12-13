@@ -1,18 +1,12 @@
 import {
   connectors,
-  registerConnector,
-  pingConnector,
   connectorsForExport,
-  connectorsForImport
+  connectorsForImport,
+  pingConnector,
+  registerConnector,
+  resetStateConnector
 } from '../domain/connector';
-import {
-  connectorForWork,
-  jobsForWork,
-  updateJob,
-  computeWorkStatus,
-  initiateJob,
-  deleteWork
-} from '../domain/work';
+import { computeWorkStatus, connectorForWork, deleteWork, initiateJob, jobsForWork, updateJob } from '../domain/work';
 
 const connectorResolvers = {
   Query: {
@@ -27,10 +21,10 @@ const connectorResolvers = {
   },
   Mutation: {
     registerConnector: (_, { input }) => registerConnector(input),
+    resetStateConnector: (_, { id }) => resetStateConnector(id),
     pingConnector: (_, { id, state }) => pingConnector(id, state),
     initiateJob: (_, { workId }) => initiateJob(workId),
-    updateJob: (_, { jobId, status, messages }) =>
-      updateJob(jobId, status, messages),
+    updateJob: (_, { jobId, status, messages }) => updateJob(jobId, status, messages),
     deleteWork: (_, { id }) => deleteWork(id)
   }
 };

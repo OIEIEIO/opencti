@@ -36,6 +36,7 @@ import IdentityCreation, {
 } from '../common/identities/IdentityCreation';
 import DatePickerField from '../../../components/DatePickerField';
 import { attributesQuery } from '../settings/attributes/AttributesLines';
+import Loader from '../../../components/Loader';
 
 const styles = (theme) => ({
   drawerPaper: {
@@ -92,7 +93,7 @@ const reportMutationRelationAdd = graphql`
   ) {
     reportEdit(id: $id) {
       relationAdd(input: $input) {
-        node {
+        from {
           ...ReportEditionOverview_report
         }
       }
@@ -107,9 +108,7 @@ const reportMutationRelationDelete = graphql`
   ) {
     reportEdit(id: $id) {
       relationDelete(relationId: $relationId) {
-        node {
-          ...ReportEditionOverview_report
-        }
+        ...ReportEditionOverview_report
       }
     }
   }
@@ -207,11 +206,11 @@ class ReportEditionOverviewComponent extends Component {
       commitMutation({
         mutation: reportMutationRelationAdd,
         variables: {
-          id: value.value,
+          id: this.props.report.id,
           input: {
-            fromRole: 'creator',
-            toId: this.props.report.id,
-            toRole: 'so',
+            fromRole: 'so',
+            toId: value.value,
+            toRole: 'creator',
             through: 'created_by_ref',
           },
         },
@@ -227,11 +226,11 @@ class ReportEditionOverviewComponent extends Component {
       commitMutation({
         mutation: reportMutationRelationAdd,
         variables: {
-          id: value.value,
+          id: this.props.report.id,
           input: {
-            fromRole: 'creator',
-            toId: this.props.report.id,
-            toRole: 'so',
+            fromRole: 'so',
+            toId: value.value,
+            toRole: 'creator',
             through: 'created_by_ref',
           },
         },
@@ -257,11 +256,11 @@ class ReportEditionOverviewComponent extends Component {
       commitMutation({
         mutation: reportMutationRelationAdd,
         variables: {
-          id: head(added).value,
+          id: this.props.report.id,
           input: {
-            fromRole: 'marking',
-            toId: this.props.report.id,
-            toRole: 'so',
+            fromRole: 'so',
+            toId: head(added).value,
+            toRole: 'marking',
             through: 'object_marking_refs',
           },
         },
@@ -538,7 +537,7 @@ class ReportEditionOverviewComponent extends Component {
                 />
               );
             }
-            return <div> &nbsp; </div>;
+            return <Loader variant="inElement" />;
           }}
         />
       </div>

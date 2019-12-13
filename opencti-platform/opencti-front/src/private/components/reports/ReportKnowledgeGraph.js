@@ -44,9 +44,7 @@ import {
 } from './ReportAddObjectRefsLines';
 import StixRelationCreation from '../common/stix_relations/StixRelationCreation';
 import StixDomainEntityEdition from '../common/stix_domain_entities/StixDomainEntityEdition';
-import StixRelationEdition, {
-  stixRelationEditionDeleteMutation,
-} from '../common/stix_relations/StixRelationEdition';
+import StixRelationEdition from '../common/stix_relations/StixRelationEdition';
 
 const styles = () => ({
   container: {
@@ -450,19 +448,14 @@ class ReportKnowledgeGraphComponent extends Component {
           fetchQuery(reportKnowledgeGraphCheckRelationQuery, {
             id: node.extras.id,
           }).then((data) => {
-            if (data.stixRelation.reports.edges.length === 1) {
-              commitMutation({
-                mutation: stixRelationEditionDeleteMutation,
-                variables: {
-                  id: node.extras.id,
-                },
-              });
-            }
+            const relationIdToDelete = data.stixRelation.reports.edges.length === 1
+              ? node.extras.id
+              : node.extras.relationId;
             commitMutation({
               mutation: reportMutationRelationDelete,
               variables: {
                 id: this.props.report.id,
-                relationId: node.extras.relationId,
+                relationId: relationIdToDelete,
               },
             });
           });
@@ -562,21 +555,21 @@ class ReportKnowledgeGraphComponent extends Component {
       lastLinkLastSeen: result.last_seen,
     });
     const input = {
-      fromRole: 'so',
-      toId: this.props.report.id,
-      toRole: 'knowledge_aggregation',
+      fromRole: 'knowledge_aggregation',
+      toRole: 'so',
+      toId: result.id,
       through: 'object_refs',
     };
     commitMutation({
       mutation: reportMutationRelationAdd,
       variables: {
-        id: result.id,
+        id: this.props.report.id,
         input,
       },
       onCompleted: (data) => {
         const newNode = new RelationNodeModel({
           id: result.id,
-          relationId: data.reportEdit.relationAdd.relation.id,
+          relationId: data.reportEdit.relationAdd.id,
           type: result.relationship_type,
           first_seen: result.first_seen,
           last_seen: result.last_seen,
@@ -877,7 +870,4 @@ const ReportKnowledgeGraph = createFragmentContainer(
   },
 );
 
-export default compose(
-  inject18n,
-  withStyles(styles),
-)(ReportKnowledgeGraph);
+export default compose(inject18n, withStyles(styles))(ReportKnowledgeGraph);

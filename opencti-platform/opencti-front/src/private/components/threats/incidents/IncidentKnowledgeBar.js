@@ -57,10 +57,11 @@ class IncidentKnowledgeBar extends Component {
             dense={false}
             classes={{ root: classes.item }}
           >
+
             <ListItemIcon>
               <Gauge />
             </ListItemIcon>
-            <ListItemText primary={t('Overview')} secondary={t('Statistics')} />
+            <ListItemText primary={t('Overview')} secondary={t('Synthesis of knowledge')} />
           </MenuItem>
           <MenuItem
             component={Link}
@@ -130,7 +131,7 @@ class IncidentKnowledgeBar extends Component {
               <LockPattern />
             </ListItemIcon>
             <ListItemText
-              primary={t('Tactics')}
+              primary={t('Techniques')}
               secondary={t('Used in this incident')}
             />
           </MenuItem>

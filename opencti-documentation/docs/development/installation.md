@@ -7,7 +7,7 @@ sidebar_label: Development environment
 ## Prerequisites
 
 - Docker
-- Node.JS (>= 10)
+- Node.JS (>= 12.* < 13.0.0)
 - Python (>= 3)
 - Yarn (>= 1.16)
 

@@ -14,10 +14,15 @@ import { ArrowDropDown, ArrowDropUp, Extension } from '@material-ui/icons';
 import ListItem from '@material-ui/core/ListItem';
 import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemText from '@material-ui/core/ListItemText';
+import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import List from '@material-ui/core/List';
 import Chip from '@material-ui/core/Chip';
+import Tooltip from '@material-ui/core/Tooltip';
+import { RotateLeft } from 'mdi-material-ui';
+import IconButton from '@material-ui/core/IconButton';
 import { FIVE_SECONDS } from '../../../utils/Time';
 import inject18n from '../../../components/i18n';
+import { commitMutation, MESSAGING$ } from '../../../relay/environment';
 
 const interval$ = interval(FIVE_SECONDS);
 
@@ -32,6 +37,8 @@ const styles = (theme) => ({
   },
   item: {
     paddingLeft: 10,
+    height: 50,
+    cursor: 'default',
   },
   bodyItem: {
     height: '100%',
@@ -129,6 +136,14 @@ const inlineStyles = {
   },
 };
 
+const connectorsStatusResetStateMutation = graphql`
+  mutation ConnectorsStatusResetStateMutation($id: ID!) {
+    resetStateConnector(id: $id) {
+      id
+    }
+  }
+`;
+
 class ConnectorsStatusComponent extends Component {
   constructor(props) {
     super(props);
@@ -138,6 +153,18 @@ class ConnectorsStatusComponent extends Component {
   componentDidMount() {
     this.subscription = interval$.subscribe(() => {
       this.props.relay.refetch();
+    });
+  }
+
+  handleResetState(connectorId) {
+    commitMutation({
+      mutation: connectorsStatusResetStateMutation,
+      variables: {
+        id: connectorId,
+      },
+      onCompleted: () => {
+        MESSAGING$.notifySuccess('The connector state has been reset');
+      },
     });
   }
 
@@ -219,6 +246,7 @@ class ConnectorsStatusComponent extends Component {
                   </div>
                 }
               />
+              <ListItemSecondaryAction> &nbsp; </ListItemSecondaryAction>
             </ListItem>
             {sortedConnectors.map((connector) => (
               <ListItem
@@ -270,6 +298,17 @@ class ConnectorsStatusComponent extends Component {
                     </div>
                   }
                 />
+                <ListItemSecondaryAction>
+                  <Tooltip title={t('Reset the connector state')}>
+                    <IconButton
+                      onClick={this.handleResetState.bind(this, connector.id)}
+                      aria-haspopup="true"
+                      color="primary"
+                    >
+                      <RotateLeft />
+                    </IconButton>
+                  </Tooltip>
+                </ListItemSecondaryAction>
               </ListItem>
             ))}
           </List>
@@ -311,7 +350,4 @@ const ConnectorsStatus = createRefetchContainer(
   connectorsStatusQuery,
 );
 
-export default compose(
-  inject18n,
-  withStyles(styles),
-)(ConnectorsStatus);
+export default compose(inject18n, withStyles(styles))(ConnectorsStatus);

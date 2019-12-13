@@ -11,9 +11,9 @@ import ListItemText from '@material-ui/core/ListItemText';
 import Avatar from '@material-ui/core/Avatar';
 import inject18n from '../../../../components/i18n';
 import { QueryRenderer } from '../../../../relay/environment';
-import EntityCoursesOfActionLines, {
-  entityCoursesOfActionLinesQuery,
-} from './EntityCoursesOfActionLines';
+import StixRelationStixRelationsLines, {
+  stixRelationStixRelationsLinesQuery,
+} from './StixRelationStixRelationsLines';
 
 const styles = (theme) => ({
   paper: {
@@ -38,27 +38,25 @@ const styles = (theme) => ({
   },
 });
 
-class EntityCoursesOfAction extends Component {
+class StixRelationStixRelations extends Component {
   render() {
-    const { t, classes, entityId } = this.props;
+    const {
+      t, classes, entityId, relationType,
+    } = this.props;
     const paginationOptions = {
-      objectId: entityId,
+      fromId: entityId,
+      relationType,
       orderBy: 'created_at',
       orderMode: 'desc',
     };
     return (
       <QueryRenderer
-        query={entityCoursesOfActionLinesQuery}
-        variables={{
-          objectId: entityId,
-          count: 200,
-          orderBy: 'created_at',
-          orderMode: 'desc',
-        }}
+        query={stixRelationStixRelationsLinesQuery}
+        variables={{ count: 25, ...paginationOptions }}
         render={({ props }) => {
           if (props) {
             return (
-              <EntityCoursesOfActionLines
+              <StixRelationStixRelationsLines
                 entityId={entityId}
                 data={props}
                 paginationOptions={paginationOptions}
@@ -72,7 +70,7 @@ class EntityCoursesOfAction extends Component {
                 gutterBottom={true}
                 style={{ float: 'left' }}
               >
-                {t('Courses of action')}
+                {t('Linked entities')}
               </Typography>
               <div className="clearfix" />
               <Paper classes={{ root: classes.paper }} elevation={2}>
@@ -109,8 +107,9 @@ class EntityCoursesOfAction extends Component {
   }
 }
 
-EntityCoursesOfAction.propTypes = {
+StixRelationStixRelations.propTypes = {
   entityId: PropTypes.string,
+  relationType: PropTypes.string,
   limit: PropTypes.number,
   classes: PropTypes.object,
   t: PropTypes.func,
@@ -120,4 +119,4 @@ EntityCoursesOfAction.propTypes = {
 export default compose(
   inject18n,
   withStyles(styles),
-)(EntityCoursesOfAction);
+)(StixRelationStixRelations);

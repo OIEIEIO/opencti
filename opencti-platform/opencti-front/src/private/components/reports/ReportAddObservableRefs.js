@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import * as PropTypes from 'prop-types';
 import { compose } from 'ramda';
 import { withStyles } from '@material-ui/core/styles';
+import { QueryRenderer } from '../../../relay/environment';
 import Drawer from '@material-ui/core/Drawer';
 import IconButton from '@material-ui/core/IconButton';
 import List from '@material-ui/core/List';
@@ -10,14 +11,14 @@ import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemText from '@material-ui/core/ListItemText';
 import Typography from '@material-ui/core/Typography';
 import Avatar from '@material-ui/core/Avatar';
+import Fab from '@material-ui/core/Fab';
 import { Add, Close } from '@material-ui/icons';
-import inject18n from '../../../../components/i18n';
-import SearchInput from '../../../../components/SearchInput';
-import { QueryRenderer } from '../../../../relay/environment';
-import AddCoursesOfActionLines, {
-  addCoursesOfActionLinesQuery,
-} from './AddCoursesOfActionLines';
-import CourseOfActionCreation from './CourseOfActionCreation';
+import inject18n from '../../../components/i18n';
+import SearchInput from '../../../components/SearchInput';
+import ReportAddObservableRefsLines, {
+  reportAddObservableRefsLinesQuery,
+} from './ReportAddObservableRefsLines';
+import StixObservableCreation from '../stix_observables/StixObservableCreation';
 
 const styles = (theme) => ({
   drawerPaper: {
@@ -32,8 +33,10 @@ const styles = (theme) => ({
     padding: 0,
   },
   createButton: {
-    float: 'left',
-    marginTop: -15,
+    position: 'fixed',
+    bottom: 30,
+    right: 30,
+    zIndex: 1100,
   },
   title: {
     float: 'left',
@@ -64,7 +67,7 @@ const styles = (theme) => ({
   },
 });
 
-class AddCoursesOfAction extends Component {
+class ReportAddObservableRefs extends Component {
   constructor(props) {
     super(props);
     this.state = { open: false, search: '' };
@@ -75,7 +78,7 @@ class AddCoursesOfAction extends Component {
   }
 
   handleClose() {
-    this.setState({ open: false, search: '' });
+    this.setState({ open: false });
   }
 
   handleSearch(keyword) {
@@ -84,27 +87,26 @@ class AddCoursesOfAction extends Component {
 
   render() {
     const {
-      t,
-      classes,
-      entityId,
-      entityCoursesOfAction,
-      entityPaginationOptions,
+      t, classes, reportId, reportObservableRefs,
     } = this.props;
     const paginationOptions = {
       search: this.state.search,
+      orderBy: 'created_at',
+      orderMode: 'desc',
     };
     return (
       <div>
-        <IconButton
+        <Fab
+          onClick={this.handleOpen.bind(this)}
           color="secondary"
           aria-label="Add"
-          onClick={this.handleOpen.bind(this)}
-          classes={{ root: classes.createButton }}
+          className={classes.createButton}
         >
-          <Add fontSize="small" />
-        </IconButton>
+          <Add />
+        </Fab>
         <Drawer
           open={this.state.open}
+          keepMounted={true}
           anchor="right"
           classes={{ paper: classes.drawerPaper }}
           onClose={this.handleClose.bind(this)}
@@ -118,7 +120,7 @@ class AddCoursesOfAction extends Component {
               <Close fontSize="small" />
             </IconButton>
             <Typography variant="h6" classes={{ root: classes.title }}>
-              {t('Add courses of action')}
+              {t('Add entities')}
             </Typography>
             <div className={classes.search}>
               <SearchInput
@@ -130,18 +132,19 @@ class AddCoursesOfAction extends Component {
           </div>
           <div className={classes.container}>
             <QueryRenderer
-              query={addCoursesOfActionLinesQuery}
+              query={reportAddObservableRefsLinesQuery}
               variables={{
                 search: this.state.search,
-                count: 20,
+                orderBy: 'created_at',
+                orderMode: 'desc',
+                count: 50,
               }}
               render={({ props }) => {
                 if (props) {
                   return (
-                    <AddCoursesOfActionLines
-                      entityId={entityId}
-                      entityCoursesOfAction={entityCoursesOfAction}
-                      entityPaginationOptions={entityPaginationOptions}
+                    <ReportAddObservableRefsLines
+                      reportId={reportId}
+                      reportObservableRefs={reportObservableRefs}
                       data={props}
                     />
                   );
@@ -177,7 +180,7 @@ class AddCoursesOfAction extends Component {
             />
           </div>
         </Drawer>
-        <CourseOfActionCreation
+        <StixObservableCreation
           display={this.state.open}
           contextual={true}
           inputValue={this.state.search}
@@ -188,15 +191,15 @@ class AddCoursesOfAction extends Component {
   }
 }
 
-AddCoursesOfAction.propTypes = {
-  entityId: PropTypes.string,
-  entityCoursesOfAction: PropTypes.array,
-  entityPaginationOptions: PropTypes.object,
+ReportAddObservableRefs.propTypes = {
+  reportId: PropTypes.string,
+  reportObservableRefs: PropTypes.array,
   classes: PropTypes.object,
   t: PropTypes.func,
+  fld: PropTypes.func,
 };
 
 export default compose(
   inject18n,
   withStyles(styles),
-)(AddCoursesOfAction);
+)(ReportAddObservableRefs);

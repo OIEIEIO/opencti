@@ -10,6 +10,10 @@ import TopBar from '../../nav/TopBar';
 import Tool from './Tool';
 import ToolReports from './ToolReports';
 import ToolKnowledge from './ToolKnowledge';
+import StixDomainEntityHeader from '../../common/stix_domain_entities/StixDomainEntityHeader';
+import FileManager from '../../common/files/FileManager';
+import ToolPopover from './ToolPopover';
+import Loader from '../../../../components/Loader';
 
 const subscription = graphql`
   subscription RootToolSubscription($id: ID!) {
@@ -18,6 +22,8 @@ const subscription = graphql`
         ...Tool_tool
         ...ToolEditionContainer_tool
       }
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
     }
   }
 `;
@@ -25,10 +31,18 @@ const subscription = graphql`
 const toolQuery = graphql`
   query RootToolQuery($id: String!) {
     tool(id: $id) {
+      id
+      name
+      alias
       ...Tool_tool
       ...ToolOverview_tool
       ...ToolReports_tool
       ...ToolKnowledge_tool
+      ...FileImportViewer_entity
+      ...FileExportViewer_entity
+    }
+    connectorsForExport {
+      ...FileManager_connectorsExport
     }
   }
 `;
@@ -71,14 +85,14 @@ class RootTool extends Component {
                   <Route
                     exact
                     path="/dashboard/techniques/tools/:toolId"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <Tool {...routeProps} tool={props.tool} />
                     )}
                   />
                   <Route
                     exact
                     path="/dashboard/techniques/tools/:toolId/reports"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <ToolReports {...routeProps} tool={props.tool} />
                     )}
                   />
@@ -93,14 +107,32 @@ class RootTool extends Component {
                   />
                   <Route
                     path="/dashboard/techniques/tools/:toolId/knowledge"
-                    render={routeProps => (
+                    render={(routeProps) => (
                       <ToolKnowledge {...routeProps} tool={props.tool} />
+                    )}
+                  />
+                  <Route
+                    exact
+                    path="/dashboard/techniques/tools/:toolId/files"
+                    render={(routeProps) => (
+                      <React.Fragment>
+                        <StixDomainEntityHeader
+                          stixDomainEntity={props.tool}
+                          PopoverComponent={<ToolPopover />}
+                        />
+                        <FileManager
+                          {...routeProps}
+                          id={toolId}
+                          connectorsExport={props.connectorsForExport}
+                          entity={props.tool}
+                        />
+                      </React.Fragment>
                     )}
                   />
                 </div>
               );
             }
-            return <div> &nbsp; </div>;
+            return <Loader />;
           }}
         />
       </div>

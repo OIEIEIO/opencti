@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import * as PropTypes from 'prop-types';
 import { compose } from 'ramda';
 import { withStyles } from '@material-ui/core/styles';
+import { QueryRenderer } from '../../../relay/environment';
 import Drawer from '@material-ui/core/Drawer';
 import IconButton from '@material-ui/core/IconButton';
 import List from '@material-ui/core/List';
@@ -18,9 +19,8 @@ import ReportAddObjectRefsLines, {
   reportAddObjectRefsLinesQuery,
 } from './ReportAddObjectRefsLines';
 import StixDomainEntityCreation from '../common/stix_domain_entities/StixDomainEntityCreation';
-import { QueryRenderer } from '../../../relay/environment';
 
-const styles = theme => ({
+const styles = (theme) => ({
   drawerPaper: {
     minHeight: '100vh',
     width: '50%',

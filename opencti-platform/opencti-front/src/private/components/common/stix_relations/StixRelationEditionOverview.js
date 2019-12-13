@@ -48,6 +48,7 @@ import DatePickerField from '../../../../components/DatePickerField';
 import { attributesQuery } from '../../settings/attributes/AttributesLines';
 import { markingDefinitionsSearchQuery } from '../../settings/MarkingDefinitions';
 import { killChainPhasesSearchQuery } from '../../settings/KillChainPhases';
+import Loader from '../../../../components/Loader';
 
 const styles = (theme) => ({
   header: {
@@ -133,7 +134,7 @@ const stixRelationMutationRelationAdd = graphql`
   ) {
     stixRelationEdit(id: $id) {
       relationAdd(input: $input) {
-        node {
+        from {
           ...StixRelationEditionOverview_stixRelation
         }
       }
@@ -148,9 +149,7 @@ const stixRelationMutationRelationDelete = graphql`
   ) {
     stixRelationEdit(id: $id) {
       relationDelete(relationId: $relationId) {
-        node {
-          ...StixRelationEditionOverview_stixRelation
-        }
+        ...StixRelationEditionOverview_stixRelation
       }
     }
   }
@@ -169,8 +168,6 @@ const stixRelationValidation = (t) => Yup.object().shape({
     .required(t('This field is required')),
   description: Yup.string(),
   role_played: Yup.string(),
-  score: Yup.string(),
-  expiration: Yup.date().typeError(t('The value must be a date (YYYY-MM-DD)')),
 });
 
 class StixRelationEditionContainer extends Component {
@@ -247,11 +244,11 @@ class StixRelationEditionContainer extends Component {
       commitMutation({
         mutation: stixRelationMutationRelationAdd,
         variables: {
-          id: head(added).value,
+          id: stixRelation.id,
           input: {
-            fromRole: 'kill_chain_phase',
-            toId: stixRelation.id,
-            toRole: 'phase_belonging',
+            fromRole: 'phase_belonging',
+            toId: head(added).value,
+            toRole: 'kill_chain_phase',
             through: 'kill_chain_phases',
           },
         },
@@ -287,11 +284,11 @@ class StixRelationEditionContainer extends Component {
       commitMutation({
         mutation: stixRelationMutationRelationAdd,
         variables: {
-          id: head(added).value,
+          id: stixRelation.id,
           input: {
-            fromRole: 'marking',
-            toId: stixRelation.id,
-            toRole: 'so',
+            fromRole: 'so',
+            toId: head(added).value,
+            toRole: 'marking',
             through: 'object_marking_refs',
           },
         },
@@ -378,8 +375,6 @@ class StixRelationEditionContainer extends Component {
         'last_seen',
         'description',
         'role_played',
-        'score',
-        'expiration',
         'killChainPhases',
         'markingDefinitions',
       ]),
@@ -468,30 +463,10 @@ class StixRelationEditionContainer extends Component {
                                 key={rolePlayedEdge.node.value}
                                 value={rolePlayedEdge.node.value}
                               >
-                                {rolePlayedEdge.node.value}
+                                {t(rolePlayedEdge.node.value)}
                               </MenuItem>
                             ))}
                           </Field>
-                        ) : (
-                          ''
-                        )}
-                        {stixRelation.relationship_type === 'indicates' ? (
-                          <Field
-                            name="score"
-                            component={TextField}
-                            label={t('Score')}
-                            fullWidth={true}
-                            style={{ marginTop: 10 }}
-                            onFocus={this.handleChangeFocus.bind(this)}
-                            onSubmit={this.handleSubmitField.bind(this)}
-                            helperText={
-                              <SubscriptionFocus
-                                me={me}
-                                users={editUsers}
-                                fieldName="score"
-                              />
-                            }
-                          />
                         ) : (
                           ''
                         )}
@@ -527,26 +502,6 @@ class StixRelationEditionContainer extends Component {
                             />
                           }
                         />
-                        {stixRelation.relationship_type === 'indicates' ? (
-                          <Field
-                            name="expiration"
-                            component={DatePickerField}
-                            label={t('Expiration')}
-                            fullWidth={true}
-                            style={{ marginTop: 10 }}
-                            onFocus={this.handleChangeFocus.bind(this)}
-                            onSubmit={this.handleSubmitField.bind(this)}
-                            helperText={
-                              <SubscriptionFocus
-                                me={me}
-                                users={editUsers}
-                                fieldName="expiration"
-                              />
-                            }
-                          />
-                        ) : (
-                          ''
-                        )}
                         <Field
                           name="description"
                           component={TextField}
@@ -608,7 +563,7 @@ class StixRelationEditionContainer extends Component {
                   />
                 );
               }
-              return <div> &nbsp; </div>;
+              return <Loader variant="inElement" />;
             }}
           />
           {stixDomainEntity ? (
@@ -664,8 +619,6 @@ const StixRelationEditionFragment = createFragmentContainer(
         description
         relationship_type
         role_played
-        score
-        expiration
         killChainPhases {
           edges {
             node {

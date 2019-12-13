@@ -4,13 +4,16 @@ import {
   markingDefinitions,
   reports,
   stixRelations,
-  tags
+  tags,
+  externalReferences,
+  stixEntityAddRelation,
+  stixEntityDeleteRelation
 } from '../domain/stixEntity';
 import { fetchEditContext } from '../database/redis';
 
 const stixEntityResolvers = {
   Query: {
-    stixEntity: (_, { id, isStixId }) => findById(id, isStixId)
+    stixEntity: (_, { id }) => findById(id)
   },
   StixEntity: {
     // eslint-disable-next-line
@@ -19,19 +22,23 @@ const stixEntityResolvers = {
         return 'StixObservable';
       }
       if (obj.entity_type) {
-        return obj.entity_type.replace(/(?:^|-)(\w)/g, (matches, letter) =>
-          letter.toUpperCase()
-        );
+        return obj.entity_type.replace(/(?:^|-|_)(\w)/g, (matches, letter) => letter.toUpperCase());
       }
       return 'Unknown';
     },
-    createdByRef: entity => createdByRef(entity.id),
-    editContext: entity => fetchEditContext(entity.id),
-    tags: (entity, args) => tags(entity.id, args),
-    reports: (entity, args) => reports(entity.id, args),
-    markingDefinitions: (stixEntity, args) =>
-      markingDefinitions(stixEntity.id, args),
+    createdByRef: stixEntity => createdByRef(stixEntity.id),
+    editContext: stixEntity => fetchEditContext(stixEntity.id),
+    externalReferences: stixEntity => externalReferences(stixEntity.id),
+    tags: stixEntity => tags(stixEntity.id),
+    reports: stixEntity => reports(stixEntity.id),
+    markingDefinitions: stixEntity => markingDefinitions(stixEntity.id),
     stixRelations: (stixEntity, args) => stixRelations(stixEntity.id, args)
+  },
+  Mutation: {
+    stixEntityEdit: (_, { id }, { user }) => ({
+      relationAdd: ({ input }) => stixEntityAddRelation(user, id, input),
+      relationDelete: ({ relationId }) => stixEntityDeleteRelation(user, id, relationId)
+    })
   }
 };
 

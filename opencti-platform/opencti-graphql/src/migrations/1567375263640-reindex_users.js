@@ -1,16 +1,11 @@
-import { find, getById } from '../database/grakn';
 import { logger } from '../config/conf';
+import { executeRead } from '../database/grakn';
 
 module.exports.up = async next => {
-  const query = `match $x isa User; get;`;
-  const entities = await find(query, ['x']);
-  logger.info('[MIGRATION] reindex_users > Persons loaded');
-  await Promise.all(
-    entities.map(entity => {
-      return getById(entity.x.id, true);
-    })
-  );
-  logger.info('[MIGRATION] reindex_users > Migration complete');
+  logger.info('[MIGRATION] reindex_users > Nothing to reindex');
+  await executeRead(rTx => {
+    rTx.tx.query(`match $x isa Settings;`);
+  });
   next();
 };
 
