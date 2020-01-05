@@ -21,6 +21,7 @@ const styles = (theme) => ({
     marginRight: theme.spacing(2),
     padding: '2px 5px 2px 5px',
     minHeight: 20,
+    minWidth: 20,
     textTransform: 'none',
   },
   icon: {
@@ -118,10 +119,10 @@ class TopMenuCampaign extends Component {
         </Button>
         <Button
           component={Link}
-          to={`/dashboard/threats/campaigns/${campaignId}/observables`}
+          to={`/dashboard/threats/campaigns/${campaignId}/indicators`}
           variant={
             location.pathname.includes(
-              `/dashboard/threats/campaigns/${campaignId}/observables`,
+              `/dashboard/threats/campaigns/${campaignId}/indicators`,
             )
               ? 'contained'
               : 'text'
@@ -129,14 +130,14 @@ class TopMenuCampaign extends Component {
           size="small"
           color={
             location.pathname.includes(
-              `/dashboard/threats/campaigns/${campaignId}/observables`,
+              `/dashboard/threats/campaigns/${campaignId}/indicators`,
             )
               ? 'primary'
               : 'inherit'
           }
           classes={{ root: classes.button }}
         >
-          {t('Observables')}
+          {t('Indicators')}
         </Button>
         <Button
           component={Link}

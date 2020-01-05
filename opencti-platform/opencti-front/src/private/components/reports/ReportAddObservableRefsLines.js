@@ -90,22 +90,22 @@ class ReportAddObservableRefsLinesContainer extends Component {
     const alreadyAdded = reportObservableRefsIds.includes(stixObservable.id);
 
     if (alreadyAdded) {
-      const existingStixDomain = head(
+      const existingStixObservable = head(
         filter((n) => n.node.id === stixObservable.id, reportObservableRefs),
       );
       commitMutation({
         mutation: reportMutationRelationDelete,
         variables: {
           id: reportId,
-          relationId: existingStixDomain.relation.id,
+          relationId: existingStixObservable.relation.id,
         },
       });
     } else {
       const input = {
-        fromRole: 'knowledge_aggregation',
+        fromRole: 'observables_aggregation',
         toId: stixObservable.id,
-        toRole: 'so',
-        through: 'object_refs',
+        toRole: 'soo',
+        through: 'observable_refs',
       };
       commitMutation({
         mutation: reportMutationRelationAdd,
@@ -245,7 +245,6 @@ const ReportAddObservableRefsLines = createPaginationContainer(
       fragment ReportAddObservableRefsLines_data on Query
         @argumentDefinitions(
           search: { type: "String" }
-
           count: { type: "Int", defaultValue: 25 }
           cursor: { type: "ID" }
           orderBy: { type: "StixObservablesOrdering", defaultValue: "name" }

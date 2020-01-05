@@ -4,6 +4,7 @@ import {
   addStixObservable,
   findAll,
   findById,
+  indicators,
   stixObservableAddRelation,
   stixObservableAskEnrichment,
   stixObservableCleanContext,
@@ -15,10 +16,10 @@ import {
   stixObservablesTimeSeries
 } from '../domain/stixObservable';
 import { pubsub } from '../database/redis';
-import withCancel from '../schema/subscriptionWrapper';
+import withCancel from '../graphql/subscriptionWrapper';
 import { workForEntity } from '../domain/work';
-import { connectorsForEnrichment } from '../domain/connector';
 import { REL_INDEX_PREFIX } from '../database/elasticSearch';
+import { connectorsForEnrichment } from '../domain/enrichment';
 
 const stixObservableResolvers = {
   Query: {
@@ -35,6 +36,7 @@ const stixObservableResolvers = {
     indicates: `${REL_INDEX_PREFIX}indicates.internal_id_key`
   },
   StixObservable: {
+    indicators: stixObservable => indicators(stixObservable.id),
     jobs: (stixObservable, args) => workForEntity(stixObservable.id, args),
     connectors: (stixObservable, { onlyAlive = false }) =>
       connectorsForEnrichment(stixObservable.entity_type, onlyAlive)

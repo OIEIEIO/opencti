@@ -152,20 +152,28 @@ class StixDomainEntityKillChainLinesComponent extends Component {
                         <ListItemText
                           primary={`${attackPattern.to.external_id} - ${attackPattern.to.name}`}
                           secondary={
-                            <Markdown
-                              className="markdown"
-                              source={
-                                attackPattern.description
-                                && attackPattern.description.length > 0
-                                  ? attackPattern.description
-                                  : t('No description of this usage')
-                              }
-                            />
+                            // eslint-disable-next-line no-nested-ternary
+                            attackPattern.description
+                            && attackPattern.description.length > 0 ? (
+                              <Markdown
+                                className="markdown"
+                                source={attackPattern.description}
+                              />
+                              ) : attackPattern.inferred ? (
+                              <i>{t('This relation is inferred')}</i>
+                              ) : (
+                                t('No description of this usage')
+                              )
                           }
                         />
                         <ItemYears
                           variant="inList"
-                          years={attackPattern.years}
+                          years={
+                            attackPattern.inferred
+                              ? t('Inferred')
+                              : attackPattern.years
+                          }
+                          disabled={attackPattern.inferred}
                         />
                         <ListItemSecondaryAction>
                           <StixRelationPopover
@@ -185,6 +193,7 @@ class StixDomainEntityKillChainLinesComponent extends Component {
         <StixRelationCreationFromEntity
           entityId={stixDomainEntityId}
           isFrom={true}
+          paddingRight={true}
           onCreate={this.props.relay.refetch.bind(this)}
           targetEntityTypes={['Attack-Pattern']}
           paginationOptions={paginationOptions}
@@ -233,6 +242,7 @@ const StixDomainEntityKillChainLines = createRefetchContainer(
               description
               first_seen
               last_seen
+              inferred
               to {
                 id
                 name

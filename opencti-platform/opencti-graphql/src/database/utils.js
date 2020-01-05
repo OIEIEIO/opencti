@@ -1,6 +1,8 @@
 import moment from 'moment/moment';
 import { head, last, mapObjIndexed, pipe, values } from 'ramda';
 import { offsetToCursor } from 'graphql-relay';
+import { PythonShell } from 'python-shell';
+import { logger } from '../config/conf';
 
 export const fillTimeSeries = (startDate, endDate, interval, data) => {
   const startDateParsed = moment(startDate);
@@ -37,14 +39,6 @@ export const fillTimeSeries = (startDate, endDate, interval, data) => {
   return newData;
 };
 
-export const randomKey = number => {
-  let key = '';
-  for (let i = 0; i < number; i += 1) {
-    key += Math.floor(Math.random() * 10).toString();
-  }
-  return key;
-};
-
 /**
  * Pure building of pagination expected format.
  * @param first
@@ -75,4 +69,67 @@ export const buildPagination = (first, offset, instances, globalCount) => {
     globalCount
   };
   return { edges, pageInfo };
+};
+
+export const execPython3 = async (scriptPath, scriptName, args) => {
+  try {
+    return new Promise((resolve, reject) => {
+      const options = {
+        mode: 'text',
+        pythonPath: 'python3',
+        scriptPath,
+        args
+      };
+      return PythonShell.run(scriptName, options, (err, results) => {
+        if (err) {
+          reject(new Error(`Python3 is missing or script not found: ${err}`));
+        }
+        try {
+          const result = JSON.parse(results[0]);
+          resolve(result);
+        } catch (err2) {
+          reject(new Error(`No valid JSON from Python script: ${err2}`));
+        }
+      });
+    });
+  } catch (err) {
+    throw new Error(`Python3 is missing or script not found: ${err}`);
+  }
+};
+
+export const checkPythonStix2 = async () => {
+  try {
+    const result = await execPython3('./src/utils/stix2', 'stix2_create_pattern.py', ['check', 'health']);
+    if (result.status !== 'success') {
+      throw new Error('Python3 with STIX2 module is missing');
+    }
+  } catch (err) {
+    throw new Error('Python3 with STIX2 module is missing');
+  }
+};
+
+export const createStixPattern = async (observableType, observableValue) => {
+  try {
+    const result = await execPython3('./src/utils/stix2', 'stix2_create_pattern.py', [observableType, observableValue]);
+    if (result.status === 'success') {
+      return result.data;
+    }
+    return null;
+  } catch (err) {
+    logger.error('[Python3] createStixPattern error > ', err);
+    return null;
+  }
+};
+
+export const extractObservables = async pattern => {
+  try {
+    const result = await execPython3('./src/utils/stix2', 'stix2_extract_observables.py', [pattern]);
+    if (result.status === 'success') {
+      return result.data;
+    }
+    return null;
+  } catch (err) {
+    logger.error('[Python3] extractObservables error > ', err);
+    return null;
+  }
 };

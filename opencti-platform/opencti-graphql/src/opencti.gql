@@ -52,10 +52,6 @@ define
   last_seen_day sub attribute, datatype string;
   last_seen_month sub attribute, datatype string;
   last_seen_year sub attribute, datatype string;
-  expiration sub attribute, datatype date;
-  expiration_day sub attribute, datatype string;
-  expiration_month sub attribute, datatype string;
-  expiration_year sub attribute, datatype string;
   name sub attribute, datatype string;
   description sub attribute, datatype string;
   connector_type sub attribute, datatype string;
@@ -91,25 +87,30 @@ define
   published_year sub attribute, datatype string;
   organization_class sub attribute, datatype string;
   report_class sub attribute, datatype string;
-  pattern sub attribute, datatype string;
+  indicator_pattern sub attribute, datatype string;
+  main_observable_type sub attribute, datatype string;
   valid_from sub attribute, datatype date;
+  valid_from_day sub attribute, datatype string;
+  valid_from_month sub attribute, datatype string;
+  valid_from_year sub attribute, datatype string;
   valid_until sub attribute, datatype date;
+  valid_until_day sub attribute, datatype string;
+  valid_until_month sub attribute, datatype string;
+  valid_until_year sub attribute, datatype string;
   platform sub attribute, datatype string;
   required_permission sub attribute, datatype string;
   source_confidence_level sub attribute, datatype long;
+  value sub attribute, datatype string;
+  pattern_type sub attribute, datatype string;
 
   # STIX SRO
   relationship_type sub attribute, datatype string;
   role_played sub attribute, datatype string;
-  infrastructure sub attribute, datatype boolean;
   weight sub attribute, datatype long;
 
   # STIX SOO
-  number sub attribute, datatype long;
-  rir sub attribute, datatype string;
   observable_value sub attribute, datatype string;
-  value sub attribute, datatype string;
-  hash_type sub attribute, datatype string;
+  observable_date sub attribute, datatype date;
 
   ## ROLES
 
@@ -139,6 +140,7 @@ define
   knowledge_aggregation sub role;
 
   # STIX observables roles
+  soo sub role;
   link_from sub role;
   link_to sub role;
   resolving sub role;
@@ -275,6 +277,10 @@ define
     relates phase_belonging,
     relates kill_chain_phase;
 
+  observable_refs sub stix_relation_embedded,
+    relates observables_aggregation,
+    relates soo;
+
   # STIX SRO relationships
   stix_sighting sub relation,
     key internal_id_key,
@@ -317,7 +323,6 @@ define
     has name,
     has description,
     has role_played,
-    has infrastructure,
     has created_at,
     has created_at_day,
     has created_at_month,
@@ -592,13 +597,6 @@ define
     plays marking,
     plays allow;
 
-  Indicator sub Stix-Domain,
-    has pattern,
-    has valid_from,
-    has valid_until,
-    plays phase_belonging,
-    plays indicator;
-
   Attack-Pattern sub Stix-Domain-Entity,
     has platform,
     has required_permission,
@@ -744,7 +742,8 @@ define
     has published_year,
     has published_month,
     has source_confidence_level,
-    plays knowledge_aggregation;
+    plays knowledge_aggregation,
+    plays observables_aggregation;
 
   Tool sub Stix-Domain-Entity,
     has tool_version,
@@ -762,6 +761,23 @@ define
     plays problem,
     plays characterize;
 
+  Indicator sub Stix-Domain-Entity,
+    key indicator_pattern,
+    has main_observable_type,
+    has pattern_type,
+    has score,
+    has valid_from,
+    has valid_from_day,
+    has valid_from_month,
+    has valid_from_year,
+    has valid_until,
+    has valid_until_day,
+    has valid_until_month,
+    has valid_until_year,
+    plays observables_aggregation,
+    plays phase_belonging,
+    plays indicator;
+
   Stix-Observable sub entity,
     abstract,
     key internal_id_key,
@@ -770,13 +786,16 @@ define
     has name,
     has description,
     key observable_value,
+    has observable_date,
     has created_at,
     has created_at_day,
     has created_at_month,
     has created_at_year,
     has updated_at,
     plays so,
-    plays indicator,
+    plays soo,
+    plays relate_from,
+    plays relate_to,
     plays part_of,
     plays link_from,
     plays link_to;
@@ -834,102 +853,3 @@ define
   X509-Certificate sub Stix-Observable;
   X509-Certificate-Issuer sub X509-Certificate;
   X509-Certificate-Serial-Number sub X509-Certificate;
-
-  ## ACCESS RULES
-  #PermissionRule sub rule
-  #when {
-  #  (member: $user, grouping: $group) isa membership;
-  #  (allowed: $group, allow: $marking) isa permission;
-  #  $marking isa Marking-Definition has level $markingLevel has definition_type $markingType;
-  #  $markingDefinition isa Marking-Definition has level $markingDefinitionLevel has definition_type $markingDefinitionType;
-  #  $markingDefinitionType == $markingType;
-  #  $markingDefinitionLevel <= $markingLevel;
-  #} then {
-  #  (allowed: $user, allow: $markingDefinition) isa user_permission;
-  #};
-
-    ## USES RULES
-    AttributionUsesRule sub rule,
-    when {
-      (origin: $origin, attribution: $entity) isa attributed-to;
-      (user: $entity, usage: $object) isa uses;
-    }, then {
-      (user: $origin, usage: $object) isa uses;
-    };
-
-    ## INDICATES RULES
-    AttributionIndicatesRule sub rule,
-    when {
-      (origin: $origin, attribution: $entity) isa attributed-to;
-      (characterize: $entity, indicator: $object) isa indicates;
-    }, then {
-      (characterize: $origin, indicator: $object) isa indicates;
-    };
-
-    IndicatationOfUsesRule sub rule,
-    when {
-      $rel(user: $user, usage: $entity) isa uses;
-      (characterize: $rel, indicator: $object) isa indicates;
-    }, then {
-      (characterize: $user, indicator: $object) isa indicates;
-    };
-
-    ## TARGETS RULES
-    AttributionTargetsRule sub rule,
-    when {
-      (origin: $origin, attribution: $entity) isa attributed-to;
-      (source: $entity, target: $target) isa targets;
-    }, then {
-      (source: $origin, target: $target) isa targets;
-    };
-
-    IncidentUsageTargetsRule sub rule,
-    when {
-      $user isa Incident;
-      (user: $user, usage: $entity) isa uses;
-      (source: $user, target: $target) isa targets;
-    }, then {
-      (source: $entity, target: $target) isa targets;
-    };
-
-    GatheringTargetsRule sub rule,
-    when {
-      (gather: $parent, part_of: $entity) isa gathering;
-      (source: $source, target: $entity) isa targets;
-    }, then {
-      (source: $source, target: $parent) isa targets;
-    };
-
-    LocalizationTargetsRule sub rule,
-    when {
-      (location: $location, localized: $target) isa localization;
-      (source: $entity, target: $target) isa targets;
-    }, then {
-      (source: $entity, target: $location) isa targets;
-    };
-
-    LocalizationOfTargetsRule sub rule,
-    when {
-      $rel(source: $entity, target: $target) isa targets;
-      (location: $location, localized: $rel) isa localization;
-    }, then {
-      (source: $entity, target: $location) isa targets;
-    };
-
-    ## ATTRIBUTED-TO RULES
-    AttributionAttributionRule sub rule,
-    when {
-      (origin: $origin, attribution: $entity) isa attributed-to;
-      (origin: $entity, attribution: $subentity) isa attributed-to;
-    }, then {
-      (origin: $origin, attribution: $subentity) isa attributed-to;
-    };
-
-    ## LOCALIZATION RULES
-    LocalizationLocalizationRule sub rule,
-    when {
-      (location: $location, localized: $entity) isa localization;
-      (location: $entity, localized: $subentity) isa localization;
-    }, then {
-      (location: $location, localized: $subentity) isa localization;
-    };

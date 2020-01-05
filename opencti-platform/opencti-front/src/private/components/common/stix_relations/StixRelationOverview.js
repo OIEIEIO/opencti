@@ -18,7 +18,6 @@ import { truncate } from '../../../../utils/String';
 import inject18n from '../../../../components/i18n';
 import ItemIcon from '../../../../components/ItemIcon';
 import ItemConfidenceLevel from '../../../../components/ItemConfidenceLevel';
-import Reports from '../../reports/Reports';
 import StixRelationEdition, {
   stixRelationEditionDeleteMutation,
 } from './StixRelationEdition';
@@ -31,6 +30,7 @@ import { stixRelationEditionFocus } from './StixRelationEditionOverview';
 import ItemMarking from '../../../../components/ItemMarking';
 import StixRelationInferences from './StixRelationInferences';
 import StixRelationStixRelations from './StixRelationStixRelations';
+import EntityLastReports from '../../reports/EntityLastReports';
 
 const styles = () => ({
   container: {
@@ -39,12 +39,12 @@ const styles = () => ({
   editButton: {
     position: 'fixed',
     bottom: 30,
-    right: 300,
+    right: 30,
   },
-  editButtonObservable: {
+  editButtonWithPadding: {
     position: 'fixed',
     bottom: 30,
-    right: 30,
+    right: 300,
   },
   item: {
     position: 'absolute',
@@ -91,6 +91,7 @@ const styles = () => ({
     color: '#ffffff',
   },
   paper: {
+    height: '100%',
     minHeight: '100%',
     margin: '10px 0 0 0',
     padding: '15px',
@@ -161,20 +162,10 @@ class StixRelationContainer extends Component {
 
   render() {
     const {
-      t,
-      fld,
-      classes,
-      entityId,
-      stixRelation,
-      inversedRoles,
-      observable,
+      t, fld, classes, stixRelation, paddingRight,
     } = this.props;
-    const linkedEntity = stixRelation.to;
-    const from = linkedEntity.id === entityId ? stixRelation.to : stixRelation.from;
-    const fromRole = linkedEntity.id === entityId
-      ? stixRelation.toRole
-      : stixRelation.fromRole;
-    const to = linkedEntity.id === entityId ? stixRelation.from : stixRelation.to;
+    const { from } = stixRelation;
+    const { to } = stixRelation;
     const linkFrom = from.entity_type === 'stix-relation'
       || from.entity_type === 'stix_relation'
       ? `${resolveLink(from.from.entity_type)}/${
@@ -231,7 +222,9 @@ class StixRelationContainer extends Component {
                     ? from.observable_value
                     : from.entity_type === 'stix_relation'
                       || from.entity_type === 'stix-relation'
-                      ? `${from.from.name} ${String.fromCharCode(8594)} ${from.to.name}`
+                      ? `${from.from.name} ${String.fromCharCode(8594)} ${
+                        from.to.name
+                      }`
                       : from.name,
                   50,
                 )}
@@ -240,15 +233,7 @@ class StixRelationContainer extends Component {
           </div>
         </Link>
         <div className={classes.middle}>
-          {includes(fromRole, inversedRoles)
-          || includes('Stix-Observable', to.parent_types) ? (
-            <ArrowRightAlt
-              fontSize="large"
-              style={{ transform: 'rotate(180deg)' }}
-            />
-            ) : (
-            <ArrowRightAlt fontSize="large" />
-            )}
+          <ArrowRightAlt fontSize="large" />
           <br />
           <div
             style={{
@@ -316,7 +301,9 @@ class StixRelationContainer extends Component {
                     ? to.observable_value
                     : to.entity_type === 'stix_relation'
                       || to.entity_type === 'stix-relation'
-                      ? `${to.from.name} ${String.fromCharCode(8594)} ${to.to.name}`
+                      ? `${to.from.name} ${String.fromCharCode(8594)} ${
+                        to.to.name
+                      }`
                       : to.name,
                   50,
                 )}
@@ -326,7 +313,7 @@ class StixRelationContainer extends Component {
         </Link>
         <div className="clearfix" style={{ height: 20 }} />
         <Grid container={true} spacing={2}>
-          <Grid item={true} xs={4}>
+          <Grid item={true} xs={6}>
             <Typography variant="h4" gutterBottom={true}>
               {t('Information')}
             </Typography>
@@ -365,7 +352,7 @@ class StixRelationContainer extends Component {
               {stixRelation.inferred ? '-' : fld(stixRelation.updated_at)}
             </Paper>
           </Grid>
-          <Grid item={true} xs={4}>
+          <Grid item={true} xs={6}>
             <Typography variant="h4" gutterBottom={true}>
               {t('Details')}
             </Typography>
@@ -405,13 +392,10 @@ class StixRelationContainer extends Component {
               />
             </Paper>
           </Grid>
-          <Grid item={true} xs={4}>
-            <StixRelationStixRelations entityId={stixRelation.id} />
-          </Grid>
         </Grid>
-        <div style={{ margin: '50px 0 60px 0' }}>
+        <div>
           {stixRelation.inferred ? (
-            <div>
+            <div style={{ margin: '50px 0 60px 0' }}>
               <Typography variant="h4" gutterBottom={true}>
                 {t('Inference explanation')}
               </Typography>
@@ -429,14 +413,18 @@ class StixRelationContainer extends Component {
               </Paper>
             </div>
           ) : (
-            <div>
-              <Typography variant="h4" gutterBottom={true}>
-                {t('Reports')}
-              </Typography>
-              <Paper classes={{ root: classes.paperReports }} elevation={2}>
-                <Reports objectId={stixRelation.id} />
-              </Paper>
-            </div>
+            <Grid
+              container={true}
+              spacing={2}
+              style={{ margin: '40px 0 60px 0' }}
+            >
+              <Grid item={true} xs={6}>
+                <StixRelationStixRelations entityId={stixRelation.id} />
+              </Grid>
+              <Grid item={true} xs={6}>
+                <EntityLastReports entityId={stixRelation.id} />
+              </Grid>
+            </Grid>
           )}
         </div>
         {stixRelation.inferred ? (
@@ -448,7 +436,9 @@ class StixRelationContainer extends Component {
               color="secondary"
               aria-label="Edit"
               className={
-                observable ? classes.editButtonObservable : classes.editButton
+                paddingRight
+                  ? classes.editButtonWithPadding
+                  : classes.editButton
               }
             >
               <Edit />
@@ -469,8 +459,7 @@ class StixRelationContainer extends Component {
 StixRelationContainer.propTypes = {
   entityId: PropTypes.string,
   stixRelation: PropTypes.object,
-  inversedRoles: PropTypes.array,
-  observable: PropTypes.bool,
+  paddingRight: PropTypes.bool,
   classes: PropTypes.object,
   t: PropTypes.func,
   nsd: PropTypes.func,

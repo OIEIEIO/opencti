@@ -21,8 +21,6 @@ const styles = () => ({
   },
 });
 
-const inversedRoles = ['origin'];
-
 class IntrusionSetKnowledgeComponent extends Component {
   render() {
     const { classes, intrusionSet } = this.props;
@@ -40,7 +38,7 @@ class IntrusionSetKnowledgeComponent extends Component {
           render={(routeProps) => (
             <StixRelation
               entityId={intrusionSet.id}
-              inversedRoles={inversedRoles}
+              paddingRight={true}
               {...routeProps}
             />
           )}
@@ -61,8 +59,6 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/attribution"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
               entityId={intrusionSet.id}
               relationType="attributed-to"
               targetEntityTypes={['Threat-Actor', 'Organization', 'User']}
@@ -91,8 +87,6 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/incidents"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
               entityId={intrusionSet.id}
               relationType="attributed-to"
               targetEntityTypes={['Incident']}
@@ -107,8 +101,6 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/malwares"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
               entityId={intrusionSet.id}
               relationType="uses"
               targetEntityTypes={['Malware']}
@@ -123,34 +115,9 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/victimology"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
-              resolveViaTypes={[
-                {
-                  entityType: 'Organization',
-                  relationType: 'gathering',
-                  relationRole: 'part_of',
-                },
-                {
-                  entityType: 'Organization',
-                  relationType: 'localization',
-                  relationRole: 'localized',
-                },
-                {
-                  entityType: 'Country',
-                  relationType: 'localization',
-                  relationRole: 'localized',
-                },
-              ]}
               entityId={intrusionSet.id}
               relationType="targets"
-              targetEntityTypes={[
-                'Organization',
-                'Sector',
-                'City',
-                'Country',
-                'Region',
-              ]}
+              targetEntityTypes={['Identity']}
               entityLink={link}
               exploreLink={`/dashboard/explore/victimology/${intrusionSet.id}`}
               creationIsFrom={true}
@@ -174,8 +141,6 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/tools"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
               entityId={intrusionSet.id}
               relationType="uses"
               targetEntityTypes={['Tool']}
@@ -190,8 +155,6 @@ class IntrusionSetKnowledgeComponent extends Component {
           path="/dashboard/threats/intrusion_sets/:intrusionSetId/knowledge/vulnerabilities"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="attributed-to"
-              resolveRelationRole="origin"
               entityId={intrusionSet.id}
               relationType="targets"
               targetEntityTypes={['Vulnerability']}

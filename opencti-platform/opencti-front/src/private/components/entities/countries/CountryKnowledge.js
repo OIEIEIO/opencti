@@ -20,8 +20,6 @@ const styles = () => ({
   },
 });
 
-const inversedRoles = ['location', 'target'];
-
 class CountryKnowledgeComponent extends Component {
   render() {
     const { classes, country } = this.props;
@@ -39,7 +37,7 @@ class CountryKnowledgeComponent extends Component {
           render={(routeProps) => (
             <StixRelation
               entityId={country.id}
-              inversedRoles={inversedRoles}
+              paddingRight={true}
               {...routeProps}
             />
           )}
@@ -74,8 +72,6 @@ class CountryKnowledgeComponent extends Component {
           path="/dashboard/entities/countries/:countryId/knowledge/organizations"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="localization"
-              resolveRelationRole="location"
               entityId={country.id}
               relationType="localization"
               targetEntityTypes={['Organization']}
@@ -90,30 +86,6 @@ class CountryKnowledgeComponent extends Component {
           path="/dashboard/entities/countries/:countryId/knowledge/threats"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="localization"
-              resolveRelationRole="location"
-              resolveViaTypes={[
-                {
-                  entityType: 'Intrusion-Set',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Campaign',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Incident',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Malware',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-              ]}
               entityId={country.id}
               relationType="targets"
               targetEntityTypes={[

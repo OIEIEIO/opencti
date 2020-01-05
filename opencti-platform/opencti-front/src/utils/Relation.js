@@ -1,3 +1,5 @@
+import { append } from 'ramda';
+
 const relationsTypesMapping = {
   'threat-actor_attack-pattern': ['uses'],
   'threat-actor_region': ['targets', 'localization'],
@@ -67,16 +69,15 @@ const relationsTypesMapping = {
   targets_country: ['localization'],
   targets_city: ['localization'],
   targets_region: ['localization'],
-  'observable_stix-relation': ['indicates'],
-  observable_stix_relation: ['indicates'],
-  observable_uses: ['indicates'],
-  'observable_threat-actor': ['indicates'],
-  'observable_intrusion-set': ['indicates'],
-  observable_campaign: ['indicates'],
-  observable_incident: ['indicates'],
-  observable_malware: ['indicates'],
-  observable_tool: ['indicates'],
-  observable_vulnerability: ['indicates'],
+  'indicator_stix-relation': ['indicates'],
+  indicator_stix_relation: ['indicates'],
+  indicator_uses: ['indicates'],
+  'indicator_threat-actor': ['indicates'],
+  'indicator_intrusion-set': ['indicates'],
+  indicator_campaign: ['indicates'],
+  indicator_malware: ['indicates'],
+  indicator_tool: ['indicates'],
+  indicator_vulnerability: ['indicates'],
   observable_organization: ['gathering'],
   observable_person: ['gathering'],
   observable_city: ['localization'],
@@ -110,8 +111,8 @@ const relationsTypesMapping = {
 };
 
 export const resolveRelationsTypes = (fromType, toType) => (relationsTypesMapping[`${fromType}_${toType}`]
-  ? relationsTypesMapping[`${fromType}_${toType}`]
-  : []);
+  ? append('related-to', relationsTypesMapping[`${fromType}_${toType}`])
+  : ['related-to']);
 
 export const resolveRoles = (type) => {
   switch (type) {

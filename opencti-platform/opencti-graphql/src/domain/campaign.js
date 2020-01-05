@@ -1,12 +1,11 @@
 import { assoc, pipe } from 'ramda';
 import {
   createEntity,
-  escapeString,
   listEntities,
   loadEntityById,
   loadEntityByStixId,
   now,
-  timeSeries
+  timeSeriesEntities
 } from '../database/grakn';
 import { BUS_TOPICS } from '../config/conf';
 import { notify } from '../database/redis';
@@ -18,21 +17,16 @@ export const findById = campaignId => {
   return loadEntityById(campaignId);
 };
 export const findAll = args => {
-  const typedArgs = assoc('types', ['Campaign'], args);
-  return listEntities(['name', 'alias'], typedArgs);
+  return listEntities(['Campaign'], ['name', 'alias'], args);
 };
 
 // region time series
 export const campaignsTimeSeries = args => {
-  return timeSeries('match $x isa Campaign', args);
+  return timeSeriesEntities('Campaign', [], args);
 };
 export const campaignsTimeSeriesByEntity = args => {
-  return timeSeries(
-    `match $x isa Campaign;
-     $rel($x, $to) isa stix_relation;
-     $to has internal_id_key "${escapeString(args.objectId)}"`,
-    args
-  );
+  const filters = [{ isRelation: true, type: 'stix_relation', value: args.objectId }];
+  return timeSeriesEntities('Campaign', filters, args);
 };
 // endregion
 

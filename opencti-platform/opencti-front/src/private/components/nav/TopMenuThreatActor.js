@@ -7,7 +7,7 @@ import Button from '@material-ui/core/Button';
 import { ArrowForwardIos, Public } from '@material-ui/icons';
 import inject18n from '../../../components/i18n';
 
-const styles = theme => ({
+const styles = (theme) => ({
   buttonHome: {
     marginRight: theme.spacing(2),
     padding: '2px 5px 2px 5px',
@@ -20,6 +20,7 @@ const styles = theme => ({
     marginRight: theme.spacing(2),
     padding: '2px 5px 2px 5px',
     minHeight: 20,
+    minWidth: 20,
     textTransform: 'none',
   },
   icon: {
@@ -119,10 +120,10 @@ class TopMenuThreatActor extends Component {
         </Button>
         <Button
           component={Link}
-          to={`/dashboard/threats/threat_actors/${threatActorId}/observables`}
+          to={`/dashboard/threats/threat_actors/${threatActorId}/indicators`}
           variant={
             location.pathname.includes(
-              `/dashboard/threats/threat_actors/${threatActorId}/observables`,
+              `/dashboard/threats/threat_actors/${threatActorId}/indicators`,
             )
               ? 'contained'
               : 'text'
@@ -130,14 +131,14 @@ class TopMenuThreatActor extends Component {
           size="small"
           color={
             location.pathname.includes(
-              `/dashboard/threats/threat_actors/${threatActorId}/observables`,
+              `/dashboard/threats/threat_actors/${threatActorId}/indicators`,
             )
               ? 'primary'
               : 'inherit'
           }
           classes={{ root: classes.button }}
         >
-          {t('Observables')}
+          {t('Indicators')}
         </Button>
         <Button
             component={Link}

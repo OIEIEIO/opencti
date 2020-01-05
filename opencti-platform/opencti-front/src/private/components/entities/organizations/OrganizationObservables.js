@@ -9,7 +9,7 @@ import Paper from '@material-ui/core/Paper';
 import inject18n from '../../../../components/i18n';
 import OrganizationPopover from './OrganizationPopover';
 import StixRelation from '../../common/stix_relations/StixRelation';
-import EntityStixObservables from '../../stix_observables/EntityStixObservables';
+import EntityStixObservables from '../../signatures/stix_observables/EntityStixObservables';
 import StixDomainEntityHeader from '../../common/stix_domain_entities/StixDomainEntityHeader';
 
 const styles = () => ({
@@ -22,8 +22,9 @@ const styles = () => ({
     padding: 0,
   },
   paper: {
+    height: '100%',
     minHeight: '100%',
-    margin: '5px 0 0 0',
+    margin: '5px 0 40px 0',
     padding: '15px',
     borderRadius: 6,
   },
@@ -53,8 +54,6 @@ class OrganizationObservablesComponent extends Component {
           render={(routeProps) => (
             <StixRelation
               entityId={organization.id}
-              inversedRoles={[]}
-              observable={true}
               {...routeProps}
             />
           )}

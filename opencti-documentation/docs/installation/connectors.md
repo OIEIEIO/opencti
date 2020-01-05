@@ -10,34 +10,38 @@ Connectors are standalone processes that are independant of the rest of the plat
 
 ## Connector configurations
 
-All connectors have to be able to access to the OpenCTI API. To allow this connection, they have 2 mandatory configuration parameters, the `OPENCTI_URL` and the `OPENCTI_TOKEN`. In addition of these 2 parameters, connectors have 5 other mandatory parameters that need to be set in order to get them work. 
+All connectors have to be able to access to the OpenCTI API. To allow this connection, they have 2 mandatory configuration parameters, the `OPENCTI_URL` and the `OPENCTI_TOKEN`. In addition of these 2 parameters, connectors have  other mandatory parameters that need to be set in order to get them work. 
 
-```
+Example in a `docker-compose.yml` file:
+```yaml
 - CONNECTOR_ID=ChangeMe
-- CONNECTOR_TYPE=INTERNAL_EXPORT_FILE
-- CONNECTOR_NAME=ExportFileStix2
-- CONNECTOR_SCOPE=application/json
+- CONNECTOR_TYPE=EXTERNAL_IMPORT
+- CONNECTOR_NAME=MITRE ATT&CK
+- CONNECTOR_SCOPE=identity,attack-pattern,course-of-action,intrusion-set,malware,tool,report
 - CONNECTOR_CONFIDENCE_LEVEL=3
+- CONNECTOR_UPDATE_EXISTING_DATA=true
 - CONNECTOR_LOG_LEVEL=info
 ```
 
-> The `CONNECTOR_ID` must be a valid UUIDv4
+Example in a `config.yml` file:
+```yaml
+connector:
+  id: 'ChangeMe'
+  type: 'EXTERNAL_IMPORT'
+  name: 'MITRE ATT&CK'
+  scope: 'identity,attack-pattern,course-of-action,intrusion-set,malware,tool,report'
+  confidence_level: 3
+  update_existing_data: True
+  log_level: 'info'
+```
 
-> The `CONNECTOR_TYPE` must be a valid type, the possible types are:
-> - EXTERNAL_IMPORT: from remote sources to OpenCTI STIX2 (ie. MITRE, MISP, CVE, etc.)
-> - INTERNAL_IMPORT_FILE: from OpenCTI file system to OpenCTI STIX (ie. Extraction of observables from PDFs, STIX2 import, etc.)
-> - INTERNAL_ENRICHMENT: from OpenCTI STIX2 to OpenCTI STIX2 (ie. Enrichment of observables though external servies, entities updates, etc.)
-> - INTERNAL_EXPORT_FILE: from OpenCTI STIX2 to OpenCTI file system (ie. STIX2 export, PDF export, CSV list generation, etc.)
-
-> The `CONNECTOR_NAME` is an arbitrary name
-
-> The `CONNECTOR_SCOPE` is the scope handled by the connector:
-> - EXTERNAL_IMPORT: entity types that have to be imported by the connectors, if the connector provide more, they will be ignored
-> - INTERNAL_IMPORT_FILE: files mime types to support (application/json, ...)
-> - INTERNAL_ENRICHMENT: entity types to support (Report, Hash, ...)
-> - INTERNAL_EXPORT_FILE: files mime types to generate (application/pdf, ...)
-
-> The `CONNECTOR_CONFIDENCE_LEVEL` of the connector will be used to set the `CONNECTOR_CONFIDENCE_LEVEL` of the relationships created by the connector. If a connector needs to create a relationship that already exists, it will check the current `CONNECTOR_CONFIDENCE_LEVEL` and if it is lower than its own, it will update the relationship with the new information. If it is higher, it will do nothing and keep the existing relationship.
+| Configuration                 | Description                                                                                                    |
+| ----------------------------- |----------------------------------------------------------------------------------------------------------------|
+| `CONNECTOR_ID`                | The value must be a valid `UUIDv4`.                                                                            |
+| `CONNECTOR_TYPE`              | The value must not be changed and is chosen by the connector developer.                                        |
+| `CONNECTOR_NAME`              | An arbitrary name to identify the connector (useful if you have multiple instances of `MISP` for instance).    |
+| `CONNECTOR_SCOPE`             | The scope handled by the connector, please refer to the connector documentation for possible values.           |
+| `CONNECTOR_CONFIDENCE_LEVEL`  | The value will be used to set the `confidence_level` of relationships created by the connector.                |
 
 ## Docker activation
 
@@ -49,7 +53,7 @@ For instance, to enable the MISP connector, you can add a new service to your `d
 
 ```
   connector-misp:
-    image: opencti/connector-misp:2.0.0
+    image: opencti/connector-misp:latest
     environment:
       - OPENCTI_URL=http://localhost
       - OPENCTI_TOKEN=ChangeMe
@@ -58,14 +62,16 @@ For instance, to enable the MISP connector, you can add a new service to your `d
       - CONNECTOR_NAME=MISP
       - CONNECTOR_SCOPE=misp
       - CONNECTOR_CONFIDENCE_LEVEL=3
+      - CONNECTOR_UPDATE_EXISTING_DATA=false
       - CONNECTOR_LOG_LEVEL=info
       - MISP_URL=http://localhost # Required
       - MISP_KEY=ChangeMe # Required
-      - MISP_TAG=OpenCTI:\ Import # Optional, tags of events to be ingested (if not provided, import all!)
-      - MISP_UNTAG_EVENT=true # Optional, remove the tag after import
-      - MISP_IMPORTED_TAG=OpenCTI:\ Imported # Required, tag event after import
-      - MISP_FILTER_ON_IMPORTED_TAG=true # Required, use imported tag to know which events to not ingest
-      - MISP_INTERVAL=1 # Minutes
+      - MISP_SSL_VERIFY=False # Required
+      - MISP_CREATE_REPORTS=True # Required, create report for MISP event
+      - MISP_REPORT_CLASS=MISP\ event # Optional, report_class if creating report for event
+      - MISP_IMPORT_FROM_DATE=2000-01-01 # Optional, import all event from this date
+      - MISP_IMPORT_TAGS=opencti:import,type:osint # Optional, list of tags used for import events
+      - MISP_INTERVAL=1 # Required, in minutes
     restart: always
  ```
 
@@ -79,11 +85,13 @@ $ unzip {RELEASE_VERSION}.zip
 $ cd connectors-{RELEASE_VERSION}/misp/
 ```
 
-Change the configuration in the `docker-compose.yml` according to the parameters of the platform and of the targeted service. RabbitMQ credentials are the only parameters that the connector need to send data to OpenCTI. Then launch the connector:
+Change the configuration in the `docker-compose.yml` according to the parameters of the platform and of the targeted service. Then launch the connector:
 
 ```
 $ docker-compose up
 ```
+
+> Be careful that some connectors will try to connect to the RabbitMQ based on the RabbitMQ configuration provided for the OpenCTI platform. The connector must be able to reach RabbitMQ on the specified `hostname` and `port`.
 
 ## Manual activation
 
@@ -113,6 +121,8 @@ Change the `config.yml` content according to the parameters of the platform and 
 ```
 $ python3 misp.py
 ```
+
+> Be careful that some connectors will try to connect to the RabbitMQ based on the RabbitMQ configuration provided for the OpenCTI platform. The connector must be able to reach RabbitMQ on the specified `hostname` and `port`.
 
 ## Connectors status
 

@@ -20,6 +20,7 @@ import { resolveLink } from '../../../../utils/Entity';
 
 const styles = (theme) => ({
   paper: {
+    height: '100%',
     minHeight: '100%',
     margin: '-4px 0 0 0',
     padding: 0,
@@ -57,6 +58,7 @@ class StixRelationStixRelationsLinesContainer extends Component {
         <StixRelationCreationFromEntity
           entityId={entityId}
           isFromRelation={true}
+          paddingRight={true}
           variant="inLine"
           paginationOptions={paginationOptions}
         />

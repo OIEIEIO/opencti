@@ -20,8 +20,6 @@ const styles = () => ({
   },
 });
 
-const inversedRoles = ['location', 'target'];
-
 class PersonKnowledgeComponent extends Component {
   render() {
     const { classes, person } = this.props;
@@ -39,7 +37,7 @@ class PersonKnowledgeComponent extends Component {
           render={(routeProps) => (
             <StixRelation
               entityId={person.id}
-              inversedRoles={inversedRoles}
+              paddingRight={true}
               {...routeProps}
             />
           )}
@@ -88,8 +86,6 @@ class PersonKnowledgeComponent extends Component {
           path="/dashboard/entities/persons/:personId/knowledge/threats"
           render={(routeProps) => (
             <EntityStixRelations
-              resolveRelationType="localization"
-              resolveRelationRole="location"
               entityId={person.id}
               relationType="targets"
               targetEntityTypes={[
@@ -101,28 +97,6 @@ class PersonKnowledgeComponent extends Component {
                 'Malware',
               ]}
               entityLink={link}
-              resolveViaTypes={[
-                {
-                  entityType: 'Intrusion-Set',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Campaign',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Incident',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-                {
-                  entityType: 'Malware',
-                  relationType: 'attributed-to',
-                  relationRole: 'attribution',
-                },
-              ]}
               creationIsFrom={false}
               {...routeProps}
             />

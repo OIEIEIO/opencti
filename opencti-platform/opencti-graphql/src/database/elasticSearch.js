@@ -4,16 +4,21 @@ import { cursorToOffset } from 'graphql-relay/lib/connection/arrayconnection';
 import {
   append,
   assoc,
+  concat,
   dissoc,
   filter,
   find as Rfind,
   flatten,
   head,
+  includes,
   invertObj,
   join,
+  last,
   map,
   mergeAll,
-  pipe
+  pipe,
+  toPairs,
+  uniq
 } from 'ramda';
 import { buildPagination } from './utils';
 import conf, { logger } from '../config/conf';
@@ -34,9 +39,17 @@ const dateFields = [
   'last_seen_month',
   'published',
   'published_day',
-  'published_month'
+  'published_month',
+  'valid_from',
+  'valid_from_day',
+  'valid_from_month',
+  'valid_until',
+  'valid_until_day',
+  'valid_until_month',
+  'observable_date'
 ];
-const numberFields = ['object_status', 'phase_order'];
+const numberFields = ['object_status', 'phase_order', 'level', 'weight'];
+const virtualTypes = ['Identity', 'Email', 'File', 'Stix-Domain-Entity', 'Stix-Domain', 'Stix-Observable'];
 
 export const REL_INDEX_PREFIX = 'rel_';
 export const INDEX_STIX_OBSERVABLE = 'stix_observables';
@@ -191,7 +204,7 @@ export const elDeleteInstanceIds = async ids => {
     });
 };
 
-export const elCount = (indexName, options) => {
+export const elCount = (indexName, options = {}) => {
   const { endDate = null, type = null, types = null } = options;
   let must = [];
   if (endDate !== null) {
@@ -252,6 +265,186 @@ export const elCount = (indexName, options) => {
     return data.body.count;
   });
 };
+export const elAggregationCount = (type, aggregationField, start, end, filters) => {
+  const haveRange = start && end;
+  const dateFilter = [];
+  if (haveRange) {
+    dateFilter.push({
+      range: {
+        created_at: {
+          gte: start,
+          lte: end
+        }
+      }
+    });
+  }
+  const histoFilters = map(f => {
+    const key = f.isRelation ? 'rel_*.internal_id_key.keyword' : `${f.type}.keyword`;
+    return {
+      multi_match: {
+        fields: [key],
+        type: 'phrase',
+        query: f.value
+      }
+    };
+  }, filters);
+  const query = {
+    index: PLATFORM_INDICES,
+    body: {
+      query: {
+        bool: {
+          must: concat(dateFilter, histoFilters),
+          should: [
+            { match_phrase: { 'entity_type.keyword': type } },
+            { match_phrase: { 'parent_types.keyword': type } }
+          ],
+          minimum_should_match: 1
+        }
+      },
+      aggs: {
+        genres: {
+          terms: {
+            field: `${aggregationField}.keyword`
+          }
+        }
+      }
+    }
+  };
+  logger.debug(`[ELASTICSEARCH] aggregationCount > ${JSON.stringify(query)}`);
+  return el
+    .search(query)
+    .then(data => {
+      const { buckets } = data.body.aggregations.genres;
+      return map(b => ({ label: b.key, value: b.doc_count }), buckets);
+    })
+    .catch(err => {
+      throw err;
+    });
+};
+export const elAggregationRelationsCount = (type, start, end, toTypes, fromId) => {
+  const haveRange = start && end;
+  const filters = [];
+  if (haveRange) {
+    filters.push({
+      range: {
+        first_seen: {
+          gte: start,
+          lte: end
+        }
+      }
+    });
+  }
+  filters.push({
+    match_phrase: { 'connections.internal_id_key': fromId }
+  });
+  for (let index = 0; index < toTypes.length; index += 1) {
+    filters.push({
+      match_phrase: { 'connections.types': toTypes[index] }
+    });
+  }
+  const query = {
+    index: INDEX_STIX_RELATIONS,
+    body: {
+      size: 500,
+      query: {
+        bool: {
+          must: filters,
+          should: [{ match_phrase: { relationship_type: type } }, { match_phrase: { parent_types: type } }],
+          minimum_should_match: 1
+        }
+      },
+      aggs: {
+        genres: {
+          terms: {
+            field: `connections.types.keyword`,
+            size: 100
+          }
+        }
+      }
+    }
+  };
+  logger.debug(`[ELASTICSEARCH] aggregationRelationsCount > ${JSON.stringify(query)}`);
+  return el.search(query).then(data => {
+    // First need to find all types relations to the fromId
+    const types = pipe(
+      map(h => h._source.connections),
+      flatten(),
+      filter(c => c.internal_id_key !== fromId && includes(head(toTypes), c.types)),
+      map(e => e.types),
+      flatten(),
+      uniq(),
+      filter(f => !includes(f, virtualTypes)),
+      map(u => u.toLowerCase())
+    )(data.body.hits.hits);
+    const { buckets } = data.body.aggregations.genres;
+    const filteredBuckets = filter(b => includes(b.key, types), buckets);
+    return map(b => ({ label: b.key, value: b.doc_count }), filteredBuckets);
+  });
+};
+export const elHistogramCount = (type, field, interval, start, end, filters) => {
+  const histoFilters = map(f => {
+    const key = f.isRelation ? 'rel_*.internal_id_key' : `${f.type}.keyword`;
+    return {
+      multi_match: {
+        fields: [key],
+        type: 'phrase',
+        query: f.value
+      }
+    };
+  }, filters);
+  let dateFormat;
+  switch (interval) {
+    case 'year':
+      dateFormat = 'yyyy';
+      break;
+    case 'month':
+      dateFormat = 'yyyy-MM';
+      break;
+    default:
+      dateFormat = 'yyyy-MM-dd';
+  }
+  const query = {
+    index: PLATFORM_INDICES,
+    _source_excludes: '*', // Dont need to get anything
+    body: {
+      query: {
+        bool: {
+          must: concat(
+            [
+              {
+                range: {
+                  created_at: {
+                    gte: start,
+                    lte: end
+                  }
+                }
+              }
+            ],
+            histoFilters
+          ),
+          should: [{ match_phrase: { entity_type: type } }, { match_phrase: { parent_types: type } }],
+          minimum_should_match: 1
+        }
+      },
+      aggs: {
+        count_over_time: {
+          date_histogram: {
+            field: `${field}_${interval}`,
+            calendar_interval: interval,
+            format: dateFormat,
+            keyed: true
+          }
+        }
+      }
+    }
+  };
+  logger.debug(`[ELASTICSEARCH] histogramCount > ${JSON.stringify(query)}`);
+  return el.search(query).then(data => {
+    const { buckets } = data.body.aggregations.count_over_time;
+    const dataToPairs = toPairs(buckets);
+    return map(b => ({ date: head(b), value: last(b).doc_count }), dataToPairs);
+  });
+};
 
 // region relation reconstruction
 // relationsMap = [V1324] = { alias, internal_id_key, role }
@@ -259,6 +452,7 @@ const elBuildRelation = (type, connection) => {
   return {
     [type]: null,
     [`${type}Id`]: connection.grakn_id,
+    [`${type}InternalId`]: connection.internal_id_key,
     [`${type}Role`]: connection.role,
     [`${type}Types`]: connection.types
   };
@@ -278,7 +472,7 @@ const elReconstructRelation = (concept, relationsMap = null) => {
   // Need to rebuild the from and the to.
   let toConnection;
   let fromConnection;
-  if (relationsMap === null) {
+  if (relationsMap === null || relationsMap.size === 0) {
     // We dont know anything, force from and to from roles map
     fromConnection = Rfind(connection => connection.role === bindingByAlias.from, connections);
     toConnection = Rfind(connection => connection.role === bindingByAlias.to, connections);
@@ -381,18 +575,23 @@ export const elPaginate = async (indexName, options) => {
   const validFilters = filter(f => f && f.values.length > 0, filters || []);
   if (validFilters.length > 0) {
     for (let index = 0; index < validFilters.length; index += 1) {
+      const valuesFiltering = [];
       const { key, values, operator = 'eq' } = validFilters[index];
-      for (let i = 0; i < values.length; i += 1) {
-        if (values[i] === null) {
-          mustnot = append({ exists: { field: key } }, mustnot);
-        } else if (operator === 'eq') {
-          must = append(
-            { match_phrase: { [`${dateFields.includes(key) ? key : `${key}.keyword`}`]: values[i] } },
-            must
-          );
-        } else {
-          must = append({ range: { [key]: { [operator]: values[i] } } }, must);
+      if (values === null) {
+        mustnot = append({ exists: { field: key } }, mustnot);
+      } else {
+        for (let i = 0; i < values.length; i += 1) {
+          if (operator === 'eq') {
+            valuesFiltering.push({
+              match_phrase: { [`${dateFields.includes(key) ? key : `${key}.keyword`}`]: values[i] }
+            });
+          } else if (operator === 'match') {
+            must = append({ match_phrase: { [`${dateFields.includes(key) ? key : `${key}`}`]: values[i] } }, must);
+          } else {
+            valuesFiltering.push({ range: { [key]: { [operator]: values[i] } } });
+          }
         }
+        must = append({ bool: { should: valuesFiltering, minimum_should_match: 1 } }, must);
       }
     }
   }
@@ -405,6 +604,7 @@ export const elPaginate = async (indexName, options) => {
   const query = {
     index: indexName,
     _source_excludes: `${REL_INDEX_PREFIX}*`,
+    track_total_hits: true,
     body: {
       from: offset,
       size: first,
@@ -422,10 +622,7 @@ export const elPaginate = async (indexName, options) => {
     .search(query)
     .then(data => {
       const dataWithIds = map(n => {
-        const loadedElement = pipe(
-          assoc('id', n._source.internal_id_key),
-          assoc('_index', n._index)
-        )(n._source);
+        const loadedElement = pipe(assoc('id', n._source.internal_id_key), assoc('_index', n._index))(n._source);
         if (loadedElement.relationship_type) {
           return elReconstructRelation(loadedElement, relationsMap);
         }
@@ -514,6 +711,7 @@ export const elIndex = async (indexName, documentBody, refresh = true) => {
       index: indexName,
       id: documentBody.grakn_id,
       refresh,
+      timeout: '60m',
       body: dissoc('_index', documentBody)
     })
     .catch(err => {
@@ -521,11 +719,12 @@ export const elIndex = async (indexName, documentBody, refresh = true) => {
     });
   return documentBody;
 };
-export const elUpdate = (indexName, documentId, documentBody, retry = 0) => {
+export const elUpdate = (indexName, documentId, documentBody, retry = 2) => {
   return el.update({
     id: documentId,
     index: indexName,
     retry_on_conflict: retry,
+    timeout: '60m',
     refresh: true,
     body: documentBody
   });
@@ -539,7 +738,7 @@ export const elRemoveRelationConnection = async relationId => {
   // Update the from entity
   await elUpdate(from._index, from.grakn_id, {
     script: {
-      source: `ctx._source['${type}'].removeIf(rel -> rel == params.key);`,
+      source: `if (ctx._source['${type}'] != null) ctx._source['${type}'].removeIf(rel -> rel == params.key);`,
       params: {
         key: to.internal_id_key
       }
@@ -548,7 +747,7 @@ export const elRemoveRelationConnection = async relationId => {
   // Update to to entity
   await elUpdate(to._index, to.grakn_id, {
     script: {
-      source: `ctx._source['${type}'].removeIf(rel -> rel == params.key);`,
+      source: `if (ctx._source['${type}'] != null) ctx._source['${type}'].removeIf(rel -> rel == params.key);`,
       params: {
         key: from.internal_id_key
       }

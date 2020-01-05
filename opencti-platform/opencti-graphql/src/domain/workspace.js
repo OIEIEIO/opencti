@@ -24,8 +24,7 @@ export const findById = workspaceId => {
   return loadEntityById(workspaceId);
 };
 export const findAll = args => {
-  const typedArgs = assoc('types', ['Workspace'], args);
-  return listEntities(['name', 'description'], typedArgs);
+  return listEntities(['Workspace'], ['name', 'description'], args);
 };
 export const ownedBy = workspaceId => {
   return loadWithConnectedRelations(
@@ -39,10 +38,7 @@ export const ownedBy = workspaceId => {
 export const objectRefs = (workspaceId, args) => {
   const filter = { key: 'object_refs.internal_id_key', values: [workspaceId] };
   const filters = concat([filter], args.filters || []);
-  const finalArgs = pipe(
-    assoc('filters', filters),
-    assoc('types', ['Stix-Domain-Entity'])
-  )(args);
+  const finalArgs = pipe(assoc('filters', filters), assoc('types', ['Stix-Domain-Entity']))(args);
   return findAllStixDomains(finalArgs);
 };
 // endregion

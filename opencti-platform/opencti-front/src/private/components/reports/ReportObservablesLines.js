@@ -113,7 +113,7 @@ const inlineStyles = {
 class ReportObservablesLinesComponent extends Component {
   constructor(props) {
     super(props);
-    this.state = { sortBy: 'type', orderAsc: false };
+    this.state = { sortBy: 'entity_type', orderAsc: false };
   }
 
   reverseBy(field) {
@@ -197,7 +197,7 @@ class ReportObservablesLinesComponent extends Component {
                 divider={true}
                 button={true}
                 component={Link}
-                to={`/dashboard/observables/all/${observableRef.id}`}
+                to={`/dashboard/signatures/observables/${observableRef.id}`}
               >
                 <ListItemIcon classes={{ root: classes.itemIcon }}>
                   <HexagonOutline />
@@ -258,8 +258,7 @@ const ReportObservablesLines = createFragmentContainer(
   ReportObservablesLinesComponent,
   {
     report: graphql`
-      fragment ReportObservablesLines_report on Report
-        @argumentDefinitions(relationType: { type: "String" }) {
+      fragment ReportObservablesLines_report on Report {
         id
         published
         source_confidence_level

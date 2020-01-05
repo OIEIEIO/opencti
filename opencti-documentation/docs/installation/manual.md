@@ -6,12 +6,15 @@ sidebar_label: Manual deployment
 
 ## Prerequisites
 
-- Node.JS (>= 12.* < 13.0.0)
-- Grakn (== 1.5.9)
-- Redis (>= 3.0)
-- ElasticSearch (>= 7.5)
-- Minio (>= 20191012)
-- RabbitMQ (>= 3.7)
+| Component     | Version               | Link                                                      |
+| ------------- |-----------------------| ----------------------------------------------------------|
+| NodeJS        | `>= 12.* && < 13.0.0` | https://nodejs.org/en/download                            |
+| Python        | `>= 3.6`              | https://www.python.org/downloads                          |
+| Grakn Core    | `=== 1.5.9`           | https://grakn.ai/download#core                            |
+| ElasticSearch | `>= 7.5`              | https://www.elastic.co/downloads/elasticsearch            |
+| MinIO         | `>= 20191012`         | https://min.io/download                                   |
+| Redis         | `>= 3.0`              | https://redis.io/download                                 |
+| RabbitMQ      | `>= 3.7`              | https://www.rabbitmq.com/download.html                    |
 
 ## Prepare the installation
 
@@ -20,7 +23,7 @@ sidebar_label: Manual deployment
 You have to install all the needed dependencies for the main application and the workers. The example below if for Ubuntu:
 
 ```bash
-$ sudo apt-get install nodejs npm python3 python3-pip
+$ sudo apt-get install nodejs npm python3 python3-pip 
 ```
 
 ### Download the application files
@@ -37,7 +40,7 @@ $ tar xvfz opencti-release-{RELEASE_VERSION}.tar.gz
 
 ### Configure the application
 
-The main application has just one JSON configuration file to change.
+The main application has just one JSON configuration file to change and a few Python modules to install
 
 ```bash
 $ cd opencti
@@ -46,12 +49,19 @@ $ cp config/default.json config/production.json
 
 Change the *config/production.json* file according to your configuration of Grakn, Redis, ElasticSearch, RabbitMQ and default credentials (the `ADMIN_TOKEN` must be a [valid UUID](https://www.uuidgenerator.net/)).
 
+### Install the Python modules
+```bash
+$ cd src/utils/stix2
+$ pip3 install -r requirements.txt
+$ cd ../../..
+```
+
 ### Start the application
 
 The application is just a NodeJS process, the creation of the database schema and the migration will be done at starting.
 
 ```bash
-$ node dist/server.js &
+$ yarn serv
 ```
 
 The default username and password are those you put in the `config/production.json` file.
@@ -78,11 +88,8 @@ $ python3 worker.py &
 
 ## Upgrade the platform
 
-When upgrading the platform, you have to replace all files and run the migrations and the schema commands to get updates:
+When upgrading the platform, you have to replace all files and restart the platform, the schema migrations will be done automatically:
 
 ```bash
-$ npm run schema
-$ npm run migrate
+$ yarn serv
 ```
-
-Then start the platform.

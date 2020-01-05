@@ -41,15 +41,11 @@ const Transition = React.forwardRef((props, ref) => (
 Transition.displayName = 'TransitionSlide';
 
 const reportRefPopoverDeletionMutation = graphql`
-  mutation ReportRefPopoverDeletionMutation(
-    $id: ID!
-    $relationId: ID!
-    $relationType: String
-  ) {
+  mutation ReportRefPopoverDeletionMutation($id: ID!, $relationId: ID!) {
     reportEdit(id: $id) {
       relationDelete(relationId: $relationId) {
-       ...ReportEntities_report
-       ...ReportObservablesLines_report @arguments(relationType: $relationType)
+        ...ReportEntities_report
+        ...ReportObservablesLines_report
       }
     }
   }
@@ -117,7 +113,6 @@ class ReportRefPopover extends Component {
           variables: {
             id: this.props.reportId,
             relationId: this.props.secondaryRelationId,
-            relationType: 'indicates',
           },
         });
       });
@@ -127,7 +122,6 @@ class ReportRefPopover extends Component {
       variables: {
         id: this.props.reportId,
         relationId: this.props.relationId,
-        relationType: 'indicates',
       },
       onCompleted: () => {
         this.handleCloseDelete();
@@ -196,7 +190,4 @@ ReportRefPopover.propTypes = {
   t: PropTypes.func,
 };
 
-export default compose(
-  inject18n,
-  withStyles(styles),
-)(ReportRefPopover);
+export default compose(inject18n, withStyles(styles))(ReportRefPopover);

@@ -14,10 +14,10 @@ import { Description } from '@material-ui/icons';
 import inject18n from '../../../components/i18n';
 import ItemMarking from '../../../components/ItemMarking';
 import { QueryRenderer } from '../../../relay/environment';
-import Loader from '../../../components/Loader';
 
 const styles = (theme) => ({
   paper: {
+    height: '100%',
     minHeight: '100%',
     margin: '10px 0 0 0',
     padding: 0,
@@ -38,6 +38,10 @@ const styles = (theme) => ({
   itemIcon: {
     marginRight: 0,
     color: theme.palette.primary.main,
+  },
+  itemIconDisabled: {
+    marginRight: 0,
+    color: theme.palette.grey[700],
   },
 });
 
@@ -88,11 +92,17 @@ const entityLastReportsQuery = graphql`
 class EntityLastReports extends Component {
   render() {
     const {
-      t, nsd, classes, entityId, authorId,
+      t,
+      nsd,
+      classes,
+      entityId,
+      stixObservableId,
+      authorId,
     } = this.props;
     const filters = [];
     if (authorId) filters.push({ key: 'createdBy', values: [authorId] });
     if (entityId) filters.push({ key: 'knowledgeContains', values: [entityId] });
+    if (stixObservableId) filters.push({ key: 'observablesContains', values: [stixObservableId] });
     return (
       <div style={{ height: '100%' }}>
         <Typography variant="h4" gutterBottom={true}>
@@ -155,7 +165,32 @@ class EntityLastReports extends Component {
                   </List>
                 );
               }
-              return <Loader variant="inElement" />;
+              return (
+                <List>
+                  {Array.from(Array(5), (e, i) => (
+                    <ListItem
+                      key={i}
+                      dense={true}
+                      divider={true}
+                      button={false}
+                    >
+                      <ListItemIcon
+                        classes={{ root: classes.itemIconDisabled }}
+                      >
+                        <Description />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <span className="fakeItem" style={{ width: '80%' }} />
+                        }
+                        secondary={
+                          <span className="fakeItem" style={{ width: '90%' }} />
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              );
             }}
           />
         </Paper>
@@ -166,6 +201,7 @@ class EntityLastReports extends Component {
 
 EntityLastReports.propTypes = {
   entityId: PropTypes.string,
+  stixObservableId: PropTypes.string,
   authorId: PropTypes.string,
   classes: PropTypes.object,
   t: PropTypes.func,

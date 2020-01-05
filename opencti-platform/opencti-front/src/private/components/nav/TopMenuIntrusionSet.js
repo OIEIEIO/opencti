@@ -21,6 +21,7 @@ const styles = (theme) => ({
     marginRight: theme.spacing(2),
     padding: '2px 5px 2px 5px',
     minHeight: 20,
+    minWidth: 20,
     textTransform: 'none',
   },
   icon: {
@@ -120,10 +121,10 @@ class TopMenuIntrusionSet extends Component {
         </Button>
         <Button
           component={Link}
-          to={`/dashboard/threats/intrusion_sets/${intrusionSetId}/observables`}
+          to={`/dashboard/threats/intrusion_sets/${intrusionSetId}/indicators`}
           variant={
             location.pathname.includes(
-              `/dashboard/threats/intrusion_sets/${intrusionSetId}/observables`,
+              `/dashboard/threats/intrusion_sets/${intrusionSetId}/indicators`,
             )
               ? 'contained'
               : 'text'
@@ -131,14 +132,14 @@ class TopMenuIntrusionSet extends Component {
           size="small"
           color={
             location.pathname.includes(
-              `/dashboard/threats/intrusion_sets/${intrusionSetId}/observables`,
+              `/dashboard/threats/intrusion_sets/${intrusionSetId}/indicators`,
             )
               ? 'primary'
               : 'inherit'
           }
           classes={{ root: classes.button }}
         >
-          {t('Observables')}
+          {t('Indicators')}
         </Button>
         <Button
           component={Link}

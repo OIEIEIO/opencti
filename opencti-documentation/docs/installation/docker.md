@@ -64,7 +64,7 @@ By default OpenCTI use Websockets so dont forget to configure your proxy for thi
 
 ## Data persistence
 
-If you wish your OpenCTI data to be persistent in production, you should be aware of the  `volumes` section for both `Grakn` and `ElasticSearch` services in the `docker-compose.yml`.
+If you wish your OpenCTI data to be persistent in production, you should be aware of the  `volumes` section for `Grakn`, `ElasticSearch` and `MinIO` services in the `docker-compose.yml`.
 
 Here is an example of volumes configuration:
 
@@ -123,9 +123,9 @@ Redis has a very small footprint and only provides an option to limit the maximu
 
 You can find more information in the [Redis docker hub](https://hub.docker.com/r/bitnami/redis/).
 
-### Minio
+### MinIO
 
-Minio is a small process and does not require a high amount of memory. More information are available for Linux here on the [Kernel tuning guide](https://github.com/minio/minio/tree/master/docs/deployment/kernel-tuning).
+MinIO is a small process and does not require a high amount of memory. More information are available for Linux here on the [Kernel tuning guide](https://github.com/minio/minio/tree/master/docs/deployment/kernel-tuning).
 
 ### RabbitMQ
 

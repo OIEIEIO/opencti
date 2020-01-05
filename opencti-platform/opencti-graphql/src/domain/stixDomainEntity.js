@@ -8,12 +8,11 @@ import {
   deleteEntityById,
   deleteRelationById,
   escape,
-  escapeString,
   executeWrite,
   listEntities,
   loadEntityById,
   loadEntityByStixId,
-  timeSeries,
+  timeSeriesEntities,
   updateAttribute
 } from '../database/grakn';
 import { findById as findMarkingDefintionById } from './markingDefinition';
@@ -25,8 +24,9 @@ import { pushToConnector } from '../database/rabbitmq';
 
 export const findAll = args => {
   const noTypes = !args.types || args.types.length === 0;
-  const finalArgs = assoc('types', noTypes ? ['Stix-Domain-Entity'] : args.types, args);
-  return listEntities(['name', 'alias'], finalArgs);
+  const entityTypes = noTypes ? ['Stix-Domain-Entity'] : args.types;
+  const finalArgs = assoc('parentType', 'Stix-Domain-Entity', args);
+  return listEntities(entityTypes, ['name', 'alias'], finalArgs);
 };
 export const findById = stixDomainEntityId => {
   if (stixDomainEntityId.match(/[a-z-]+--[\w-]{36}/g)) {
@@ -37,15 +37,13 @@ export const findById = stixDomainEntityId => {
 
 // region time series
 export const reportsTimeSeries = (stixDomainEntityId, args) => {
-  return timeSeries(
-    `match $x isa Report; 
-    $rel(knowledge_aggregation:$x, so:$so) isa object_refs; 
-    $so has internal_id_key "${escapeString(stixDomainEntityId)}"`,
-    args
-  );
+  const filters = [
+    { isRelation: true, from: 'knowledge_aggregation', to: 'so', type: 'object_refs', value: stixDomainEntityId }
+  ];
+  return timeSeriesEntities('Report', filters, args);
 };
 export const stixDomainEntitiesTimeSeries = args => {
-  return timeSeries(`match $x isa ${args.type ? escape(args.type) : 'Stix-Domain-Entity'}`, args);
+  return timeSeriesEntities(args.type ? escape(args.type) : 'Stix-Domain-Entity', [], args);
 };
 
 export const stixDomainEntitiesNumber = args => ({
